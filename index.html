@@ -1,27 +1,807 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Home Menu</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Home Menu">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0F766E">
 <meta name="description" content="Home Menu helps a household and its helper plan meals together, in English and Arabic.">
+<title>Home Menu</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
-  body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #FFF8F0; color: #1F2937; line-height: 1.6; }
-  main { max-width: 680px; margin: 0 auto; padding: 48px 20px; }
-  h1 { font-size: 36px; margin: 0 0 8px; }
-  p { font-size: 18px; }
-  .footer { margin-top: 48px; font-size: 16px; color: #6B7280; }
-  a { color: #0F766E; }
+  :root { --bg:#FFF8F0; --ink:#1F2937; --muted:#4B5563; --line:#E5E7EB; --card:#FFFFFF;
+          --teal:#0F766E; --teal-soft:#E0F7F2; --coral:#C2410C; --coral-soft:#FFE4DC; --amber:#FFF1C2; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size:20px; line-height:1.5; padding-bottom:110px; }
+  html[dir=rtl] body { font-family: 'Segoe UI', Tahoma, 'Noto Naskh Arabic', system-ui, sans-serif; }
+  #app { max-width:680px; margin:0 auto; padding:16px; }
+  h1 { font-size:34px; margin:8px 0 4px; }
+  h2 { font-size:26px; margin:20px 0 10px; }
+  h3 { font-size:22px; margin:4px 0; }
+  p { margin:8px 0; }
+  .muted { color:var(--muted); }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin:12px 0; }
+  .btn { display:flex; align-items:center; justify-content:center; width:100%; min-height:64px; border:0; border-radius:16px;
+         background:var(--teal); color:#fff; font:inherit; font-size:22px; font-weight:700; padding:12px 20px; cursor:pointer; margin:8px 0; text-align:center; }
+  .btn.secondary { background:#fff; color:var(--ink); border:2px solid #9CA3AF; }
+  .btn.danger { background:#fff; color:var(--coral); border:2px solid var(--coral); }
+  .btn.small { min-height:52px; font-size:19px; width:auto; padding:8px 16px; }
+  .btn:disabled { opacity:.5; }
+  .chip { display:inline-flex; align-items:center; min-height:52px; padding:8px 14px; border-radius:14px; border:2px solid #9CA3AF;
+          background:#fff; font:inherit; font-size:19px; cursor:pointer; margin:4px 4px 4px 0; color:var(--ink); }
+  .chip.on { background:var(--teal); border-color:var(--teal); color:#fff; font-weight:700; }
+  input, select, textarea { width:100%; font:inherit; font-size:20px; min-height:60px; padding:10px 14px; border:2px solid #9CA3AF;
+          border-radius:14px; background:#fff; color:var(--ink); margin:6px 0 12px; }
+  textarea { min-height:100px; }
+  label { font-size:19px; font-weight:600; display:block; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .tag { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--teal-soft); color:var(--teal); font-size:17px; font-weight:700; }
+  .tag.warn { background:var(--coral-soft); color:var(--coral); }
+  .tag.gold { background:var(--amber); color:#7C4A03; }
+  .notice { background:var(--amber); border-radius:14px; padding:12px 16px; margin:12px 0; font-size:19px; }
+  .error { background:var(--coral-soft); color:var(--coral); border-radius:14px; padding:12px 16px; margin:12px 0; font-size:19px; }
+  .nav { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line);
+         display:flex; justify-content:space-around; padding:8px 6px calc(8px + env(safe-area-inset-bottom)); z-index:10; }
+  .nav button { flex:1; min-height:60px; border:0; background:transparent; font:inherit; font-size:17px; font-weight:700; color:var(--muted); border-radius:12px; cursor:pointer; margin:0 2px; }
+  .nav button.on { background:var(--teal-soft); color:var(--teal); }
+  .center { text-align:center; padding-top:40px; }
+  ul.clean { list-style:none; padding:0; margin:0; }
+  ul.clean li { padding:10px 0; border-bottom:1px solid var(--line); }
+  ul.clean li:last-child { border-bottom:0; }
+  .step { font-size:21px; margin:10px 0; }
+  .have { color:var(--teal); font-weight:700; }
+  .lack { color:var(--coral); font-weight:700; }
 </style>
 </head>
 <body>
-<main>
-  <h1>Home Menu</h1>
-  <p>Home Menu helps a household and the person who cooks for it plan meals together. The household can see what is in the kitchen, browse recipes, and set rules such as foods to avoid. The person who cooks can update the kitchen stock and see which recipes they can make.</p>
-  <p>The app is available in English and Arabic.</p>
-  <p class="footer">
-    <a href="privacy.html">Privacy policy</a> · <a href="mailto:taifalsabti@gmail.com">Contact</a>
-  </p>
-</main>
+<div id="app"><p class="center muted">Loading…</p></div>
+
+<nav class="nav" id="nav" hidden></nav>
+
+<script>
+// ---------------------------------------------------------------
+// Settings. The publishable key is safe to include in the web app.
+// ---------------------------------------------------------------
+const SUPABASE_URL = 'https://kyawromxuqwmpqbfzmvt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_P71m-SXEXPBKl1oym9OogQ_R2SEad5Q';
+const APP_URL = 'https://home-menu.homemenucontact.workers.dev/';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});
+
+// ---------------------------------------------------------------
+// Text in both languages
+// ---------------------------------------------------------------
+const TEXT = {
+  en: {
+    tagline: 'Plan meals together with your household',
+    signIn: 'Continue with Google',
+    signOut: 'Sign out',
+    welcome: 'Welcome',
+    welcomeText: 'If someone in your household invited you, sign in with that Gmail address and you will join automatically. Otherwise, create a new household below.',
+    householdName: 'Household name',
+    householdExample: 'For example: Al-Farsi family',
+    createHousehold: 'Create household',
+    today: 'Today',
+    kitchen: 'Kitchen',
+    recipes: 'Recipes',
+    rules: 'Rules',
+    members: 'People',
+    breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner',
+    noMealsSlot: 'Nothing planned yet.',
+    addMeal: 'Add a meal',
+    chooseRecipe: 'Choose a recipe',
+    chooseSlot: 'Which meal',
+    servings: 'How many people',
+    save: 'Save',
+    cancel: 'Cancel',
+    approve: 'Approve',
+    markCooked: 'Mark as cooked',
+    deleteMeal: 'Remove',
+    confirmDeleteMeal: 'Remove this meal from the plan?',
+    suggested: 'Suggested', approved: 'Approved', cookedDone: 'Cooked',
+    level: 'How much is left',
+    Full: 'Full', Half: 'Half', Low: 'Low', Finished: 'Finished',
+    fridge: 'Fridge', freezer: 'Freezer', pantry: 'Pantry',
+    addItem: 'Add an item',
+    itemName: 'Name (English)',
+    itemNameAr: 'Name (Arabic, optional)',
+    itemKey: 'Short word for matching recipes, for example: tomato',
+    location: 'Where is it kept',
+    deleteItem: 'Remove',
+    confirmDeleteItem: 'Remove this item from the kitchen?',
+    readOnlyKitchen: 'You can see the kitchen stock. The helper keeps it up to date.',
+    search: 'Search recipes',
+    ready: 'You have everything',
+    missing: 'Missing',
+    hiddenByRules: 'hidden by your rules',
+    ingredients: 'Ingredients',
+    steps: 'Steps',
+    back: 'Back',
+    rulesIntro: 'Dos and don\'ts for cooking in your home.',
+    doLabel: 'Do', dontLabel: 'Don\'t',
+    ruleText: 'Rule (English), for example: No cumin',
+    ruleTextAr: 'Rule (Arabic, optional)',
+    ruleIngredient: 'Ingredient key (optional, hides recipes that use it)',
+    addRule: 'Add rule',
+    deleteRule: 'Remove',
+    confirmDeleteRule: 'Remove this rule?',
+    inviteTitle: 'Invite someone',
+    inviteEmail: 'Their Gmail address',
+    inviteRole: 'Role',
+    invite: 'Send invitation',
+    pending: 'Waiting to join',
+    changeRole: 'Change role',
+    role_admin: 'Admin', role_member: 'Member', role_helper: 'Helper',
+    yourRole: 'Your role',
+    helperNote: 'As the helper, you keep the kitchen up to date and mark meals as cooked.',
+    memberNote: 'You browse recipes, set rules and choose meals.',
+    adminNote: 'You manage the household and the people in it.',
+    done: 'Done',
+    ok: 'Saved.',
+    errorPrefix: 'Something went wrong: ',
+    langButton: 'عربي',
+    loading: 'Loading…',
+    noRecipes: 'No recipes match.',
+    emptyKitchen: 'The kitchen is empty. Add what is in the fridge, freezer and pantry.',
+    noRules: 'No rules yet.',
+    dateLocale: 'en-GB',
+  },
+  ar: {
+    tagline: 'خططوا للوجبات معا مع أسرتكم',
+    signIn: 'المتابعة بحساب Google',
+    signOut: 'تسجيل الخروج',
+    welcome: 'أهلا بك',
+    welcomeText: 'إذا دعاك أحد من أسرتك، سجّل الدخول بعنوان Gmail الذي دعاك عليه وستنضم تلقائيا. وإلا أنشئ أسرة جديدة بالأسفل.',
+    householdName: 'اسم الأسرة',
+    householdExample: 'مثال: عائلة الفارسي',
+    createHousehold: 'إنشاء الأسرة',
+    today: 'اليوم',
+    kitchen: 'المطبخ',
+    recipes: 'الوصفات',
+    rules: 'القواعد',
+    members: 'الأفراد',
+    breakfast: 'الفطور', lunch: 'الغداء', dinner: 'العشاء',
+    noMealsSlot: 'لا توجد وجبة مخططة بعد.',
+    addMeal: 'إضافة وجبة',
+    chooseRecipe: 'اختر وصفة',
+    chooseSlot: 'أي وجبة',
+    servings: 'عدد الأشخاص',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    approve: 'موافقة',
+    markCooked: 'تم الطبخ',
+    deleteMeal: 'إزالة',
+    confirmDeleteMeal: 'هل تريد إزالة هذه الوجبة من الخطة؟',
+    suggested: 'مقترحة', approved: 'موافق عليها', cookedDone: 'تم طبخها',
+    level: 'المتبقي',
+    Full: 'ممتلئ', Half: 'نصف', Low: 'قليل', Finished: 'انتهى',
+    fridge: 'الثلاجة', freezer: 'الفريزر', pantry: 'المخزن',
+    addItem: 'إضافة صنف',
+    itemName: 'الاسم (بالإنجليزية)',
+    itemNameAr: 'الاسم (بالعربية، اختياري)',
+    itemKey: 'كلمة قصيرة للمطابقة مع الوصفات، مثال: tomato',
+    location: 'مكان الحفظ',
+    deleteItem: 'إزالة',
+    confirmDeleteItem: 'هل تريد إزالة هذا الصنف من المطبخ؟',
+    readOnlyKitchen: 'يمكنك رؤية مخزون المطبخ. المساعدة في المطبخ تحدّثه.',
+    search: 'ابحث في الوصفات',
+    ready: 'لديك كل المكونات',
+    missing: 'ينقص',
+    hiddenByRules: 'مخفية بسبب قواعدكم',
+    ingredients: 'المكونات',
+    steps: 'الخطوات',
+    back: 'رجوع',
+    rulesIntro: 'ما يجب وما لا يجب فعله في طبخ منزلكم.',
+    doLabel: 'يجب', dontLabel: 'لا يجب',
+    ruleText: 'القاعدة (بالإنجليزية)، مثال: No cumin',
+    ruleTextAr: 'القاعدة (بالعربية، اختياري)',
+    ruleIngredient: 'مفتاح المكوّن (اختياري، يخفي الوصفات التي تستخدمه)',
+    addRule: 'إضافة قاعدة',
+    deleteRule: 'إزالة',
+    confirmDeleteRule: 'هل تريد إزالة هذه القاعدة؟',
+    inviteTitle: 'دعوة شخص',
+    inviteEmail: 'عنوان Gmail الخاص به',
+    inviteRole: 'الدور',
+    invite: 'إرسال الدعوة',
+    pending: 'في انتظار الانضمام',
+    changeRole: 'تغيير الدور',
+    role_admin: 'مسؤول', role_member: 'فرد من الأسرة', role_helper: 'المساعدة في المطبخ',
+    yourRole: 'دورك',
+    helperNote: 'بصفتك المساعدة في المطبخ، تحدّث المخزون وتسجّل الوجبات المطبوخة.',
+    memberNote: 'تتصفح الوصفات وتضع القواعد وتختار الوجبات.',
+    adminNote: 'تدير الأسرة والأفراد فيها.',
+    done: 'تم',
+    ok: 'تم الحفظ.',
+    errorPrefix: 'حدث خطأ: ',
+    langButton: 'English',
+    loading: 'جارٍ التحميل…',
+    noRecipes: 'لا توجد وصفات مطابقة.',
+    emptyKitchen: 'المطبخ فارغ. أضيفوا ما في الثلاجة والفريزر والمخزن.',
+    noRules: 'لا توجد قواعد بعد.',
+    dateLocale: 'ar',
+  },
+};
+
+// ---------------------------------------------------------------
+// State
+// ---------------------------------------------------------------
+let lang = 'en';
+try { lang = localStorage.getItem('homemenu-lang') || 'en'; } catch (e) {}
+let session = null;
+let hh = null;            // { id, name, role }
+let tab = 'today';
+let notice = '';          // green/amber message
+let problem = '';         // red message
+let recipeFilter = '';
+let openRecipeId = null;
+let mealForm = false;
+let itemForm = false;
+let ruleForm = false;
+let cache = {};           // data loaded for the current tab
+
+const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nameOf = (en, ar) => (lang === 'ar' && ar) ? ar : (en || ar || '');
+const can = {
+  stock: () => hh && (hh.role === 'admin' || hh.role === 'helper'),
+  rules: () => hh && (hh.role === 'admin' || hh.role === 'member'),
+  approve: () => hh && (hh.role === 'admin' || hh.role === 'member'),
+  cook: () => hh && (hh.role === 'admin' || hh.role === 'helper'),
+  suggest: () => !!hh,
+  people: () => hh && hh.role === 'admin',
+};
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  try { localStorage.setItem('homemenu-lang', lang); } catch (e) {}
+}
+function setLang(l) { lang = l; applyLang(); render(); }
+function langButton() {
+  return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
+}
+function messages() {
+  let out = '';
+  if (problem) out += `<div class="error">${esc(problem)}</div>`;
+  if (notice) out += `<div class="notice">${esc(notice)}</div>`;
+  return out;
+}
+function setProblem(err) {
+  problem = t('errorPrefix') + (err && err.message ? err.message : String(err));
+  notice = '';
+  render();
+}
+function setNotice(msg) { notice = msg; problem = ''; render(); }
+
+function render() {
+  applyLang();
+  const app = document.getElementById('app');
+  const nav = document.getElementById('nav');
+  if (!session) {
+    nav.hidden = true;
+    app.innerHTML = renderSignIn();
+    return;
+  }
+  if (!hh) {
+    nav.hidden = true;
+    app.innerHTML = renderCreateHousehold();
+    return;
+  }
+  nav.hidden = false;
+  nav.innerHTML = navHtml();
+  app.innerHTML = `
+    <div class="top">
+      <div>
+        <div class="muted">${esc(hh.name)}</div>
+        <h1>${esc(t(tab))}</h1>
+      </div>
+      <div>${langButton()}</div>
+    </div>
+    ${messages()}
+    <div id="screen">${cache.screenHtml || ''}</div>
+    <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
+}
+
+function navHtml() {
+  const tabs = ['today', 'kitchen', 'recipes', 'rules'];
+  if (can.people()) tabs.push('members');
+  return tabs.map((k) => `<button class="${k === tab ? 'on' : ''}" onclick="go('${k}')">${esc(t(k))}</button>`).join('');
+}
+
+// ---------------------------------------------------------------
+// Sign in and households
+// ---------------------------------------------------------------
+function renderSignIn() {
+  return `
+    <div class="center">
+      <h1>Home Menu</h1>
+      <p class="muted">${esc(TEXT[lang].tagline)}</p>
+      <p><button class="chip" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button></p>
+    </div>
+    ${messages()}
+    <div class="card">
+      <button class="btn" onclick="signIn()">${t('signIn')}</button>
+    </div>`;
+}
+
+function renderCreateHousehold() {
+  return `
+    <div class="top"><h1>${t('welcome')}</h1><div>${langButton()}</div></div>
+    <p>${esc(t('welcomeText'))}</p>
+    ${messages()}
+    <div class="card">
+      <label for="hname">${t('householdName')}</label>
+      <input id="hname" placeholder="${esc(t('householdExample'))}">
+      <button class="btn" onclick="createHousehold()">${t('createHousehold')}</button>
+    </div>
+    <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
+}
+
+async function signIn() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: APP_URL },
+  });
+  if (error) setProblem(error);
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  session = null; hh = null; cache = {}; notice = ''; problem = '';
+  render();
+}
+
+async function createHousehold() {
+  const name = (document.getElementById('hname').value || '').trim();
+  if (!name) { problem = t('householdName'); render(); return; }
+  const { error } = await sb.rpc('create_household', { p_name: name });
+  if (error) return setProblem(error);
+  await loadHousehold();
+  tab = 'today';
+  render();
+}
+
+async function loadHousehold() {
+  await sb.rpc('claim_invitations');
+  const { data, error } = await sb
+    .from('household_members')
+    .select('household_id, role, households(name)')
+    .eq('user_id', session.user.id)
+    .limit(1);
+  if (error) { problem = error.message; hh = null; return; }
+  const row = data && data[0];
+  hh = row ? { id: row.household_id, role: row.role, name: row.households?.name || '' } : null;
+}
+
+// ---------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------
+async function go(k) {
+  tab = k;
+  notice = ''; problem = '';
+  mealForm = false; itemForm = false; ruleForm = false; openRecipeId = null;
+  await loadTab();
+}
+
+async function loadTab() {
+  cache.screenHtml = '<p class="muted">' + esc(t('loading')) + '</p>';
+  render();
+  try {
+    if (tab === 'today') cache.screenHtml = await screenToday();
+    if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
+    if (tab === 'recipes') cache.screenHtml = await screenRecipes();
+    if (tab === 'rules') cache.screenHtml = await screenRules();
+    if (tab === 'members') cache.screenHtml = await screenMembers();
+  } catch (e) {
+    cache.screenHtml = '';
+    problem = t('errorPrefix') + (e.message || e);
+  }
+  render();
+}
+
+function roleNote() {
+  return hh.role === 'helper' ? t('helperNote') : hh.role === 'admin' ? t('adminNote') : t('memberNote');
+}
+
+// ---------------------------------------------------------------
+// TODAY: meals for today
+// ---------------------------------------------------------------
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+async function screenToday() {
+  const day = todayIso();
+  const niceDate = new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' });
+  const { data: meals, error } = await sb
+    .from('meals')
+    .select('id, meal_slot, servings, status, recipe_id, recipes(title_en, title_ar)')
+    .eq('household_id', hh.id)
+    .eq('meal_date', day);
+  if (error) throw error;
+  cache.meals = meals || [];
+
+  let html = `<p class="muted">${esc(niceDate)}</p>
+    <p>${esc(roleNote())}</p>`;
+
+  for (const slot of ['breakfast', 'lunch', 'dinner']) {
+    const list = cache.meals.filter((m) => m.meal_slot === slot);
+    html += `<div class="card"><h2 style="margin-top:0">${esc(t(slot))}</h2>`;
+    if (!list.length) html += `<p class="muted">${esc(t('noMealsSlot'))}</p>`;
+    html += '<ul class="clean">';
+    for (const m of list) {
+      const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
+      const statusTag = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
+        : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
+        : `<span class="tag warn">${esc(t('suggested'))}</span>`;
+      let actions = '';
+      if (m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
+      if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
+      if (hh.role === 'admin') actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
+      html += `<li><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+    }
+    html += '</ul></div>';
+  }
+
+  if (mealForm) {
+    const { data: recipes } = await sb.from('recipes').select('id, title_en, title_ar').order('title_en');
+    cache.recipes = recipes || [];
+    html += `<div class="card"><h2 style="margin-top:0">${esc(t('addMeal'))}</h2>
+      <label>${esc(t('chooseSlot'))}</label>
+      <select id="mslot">${['breakfast', 'lunch', 'dinner'].map((s) => `<option value="${s}">${esc(t(s))}</option>`).join('')}</select>
+      <label>${esc(t('chooseRecipe'))}</label>
+      <select id="mrecipe">${cache.recipes.map((r) => `<option value="${r.id}">${esc(nameOf(r.title_en, r.title_ar))}</option>`).join('')}</select>
+      <label>${esc(t('servings'))}</label>
+      <select id="mservings">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>
+      <button class="btn" onclick="saveMeal()">${esc(t('save'))}</button>
+      <button class="btn secondary" onclick="toggleMealForm(false)">${esc(t('cancel'))}</button></div>`;
+  } else {
+    html += `<button class="btn" onclick="toggleMealForm(true)">${esc(t('addMeal'))}</button>`;
+  }
+  return html;
+}
+
+async function toggleMealForm(on) { mealForm = on; await loadTab(); }
+
+async function saveMeal() {
+  const { error } = await sb.from('meals').insert({
+    household_id: hh.id,
+    meal_date: todayIso(),
+    meal_slot: document.getElementById('mslot').value,
+    recipe_id: document.getElementById('mrecipe').value,
+    servings: Number(document.getElementById('mservings').value),
+    status: 'suggested',
+    created_by: session.user.id,
+  });
+  if (error) return setProblem(error);
+  mealForm = false;
+  setNotice(t('ok'));
+  await loadTab();
+}
+
+async function setMealStatus(id, status) {
+  const { error } = await sb.from('meals').update({ status }).eq('id', id);
+  if (error) return setProblem(error);
+  await loadTab();
+}
+
+async function removeMeal(id) {
+  if (!confirm(t('confirmDeleteMeal'))) return;
+  const { error } = await sb.from('meals').delete().eq('id', id);
+  if (error) return setProblem(error);
+  await loadTab();
+}
+
+// ---------------------------------------------------------------
+// KITCHEN: stock
+// ---------------------------------------------------------------
+const LEVELS = ['Full', 'Half', 'Low', 'Finished'];
+const LOCATIONS = ['fridge', 'freezer', 'pantry'];
+
+async function screenKitchen() {
+  const { data, error } = await sb
+    .from('pantry_items')
+    .select('id, name_en, name_ar, ingredient_key, location, level')
+    .eq('household_id', hh.id)
+    .order('name_en');
+  if (error) throw error;
+  cache.items = data || [];
+  const editable = can.stock();
+
+  let html = `<p>${esc(editable ? roleNote() : t('readOnlyKitchen'))}</p>`;
+  if (!cache.items.length) html += `<div class="card"><p>${esc(t('emptyKitchen'))}</p></div>`;
+
+  for (const loc of LOCATIONS) {
+    const list = cache.items.filter((i) => i.location === loc);
+    if (!list.length) continue;
+    html += `<h2>${esc(t(loc))}</h2><div class="card"><ul class="clean">`;
+    for (const it of list) {
+      const levels = editable
+        ? LEVELS.map((l) => `<button class="chip ${it.level === l ? 'on' : ''}" onclick="setLevel('${it.id}','${l}')">${esc(t(l))}</button>`).join('')
+        : `<span class="tag">${esc(t(it.level))}</span>`;
+      const del = editable ? `<button class="btn small danger" onclick="removeItem('${it.id}')">${esc(t('deleteItem'))}</button>` : '';
+      html += `<li><div class="row"><strong>${esc(nameOf(it.name_en, it.name_ar))}</strong>${del}</div><div>${levels}</div></li>`;
+    }
+    html += '</ul></div>';
+  }
+
+  if (editable) {
+    if (itemForm) {
+      html += `<div class="card"><h2 style="margin-top:0">${esc(t('addItem'))}</h2>
+        <label>${esc(t('itemName'))}</label><input id="iname">
+        <label>${esc(t('itemNameAr'))}</label><input id="iname_ar">
+        <label>${esc(t('itemKey'))}</label><input id="ikey">
+        <label>${esc(t('location'))}</label>
+        <select id="iloc">${LOCATIONS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
+        <label>${esc(t('level'))}</label>
+        <select id="ilevel">${LEVELS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
+        <button class="btn" onclick="saveItem()">${esc(t('save'))}</button>
+        <button class="btn secondary" onclick="toggleItemForm(false)">${esc(t('cancel'))}</button></div>`;
+    } else {
+      html += `<button class="btn" onclick="toggleItemForm(true)">${esc(t('addItem'))}</button>`;
+    }
+  }
+  return html;
+}
+
+async function toggleItemForm(on) { itemForm = on; await loadTab(); }
+
+async function saveItem() {
+  const name = document.getElementById('iname').value.trim();
+  if (!name) return setProblem(new Error(t('itemName')));
+  const key = (document.getElementById('ikey').value.trim() || name).toLowerCase();
+  const { error } = await sb.from('pantry_items').insert({
+    household_id: hh.id,
+    name_en: name,
+    name_ar: document.getElementById('iname_ar').value.trim() || null,
+    ingredient_key: key,
+    location: document.getElementById('iloc').value,
+    level: document.getElementById('ilevel').value,
+    updated_by: session.user.id,
+  });
+  if (error) return setProblem(error);
+  itemForm = false;
+  setNotice(t('ok'));
+  await loadTab();
+}
+
+async function setLevel(id, level) {
+  const { error } = await sb.from('pantry_items')
+    .update({ level, updated_by: session.user.id, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) return setProblem(error);
+  await loadTab();
+}
+
+async function removeItem(id) {
+  if (!confirm(t('confirmDeleteItem'))) return;
+  const { error } = await sb.from('pantry_items').delete().eq('id', id);
+  if (error) return setProblem(error);
+  await loadTab();
+}
+
+// ---------------------------------------------------------------
+// RECIPES: browse, matched to stock, filtered by rules
+// ---------------------------------------------------------------
+async function screenRecipes() {
+  const [rec, ings, avail, pantry, rules] = await Promise.all([
+    sb.from('recipes').select('id, household_id, title_en, title_ar, minutes, meal_slot, steps_en, steps_ar').order('title_en'),
+    sb.from('recipe_ingredients').select('recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
+    sb.from('recipe_availability').select('recipe_id, required_count, in_stock_count').eq('household_id', hh.id),
+    sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
+    sb.from('rules').select('kind, text_en, text_ar, ingredient_key').eq('household_id', hh.id),
+  ]);
+  for (const r of [rec, ings, avail, pantry, rules]) if (r.error) throw r.error;
+
+  const inStock = new Set(pantry.data.filter((p) => p.level !== 'Finished').map((p) => p.ingredient_key));
+  const donts = new Set(rules.data.filter((r) => r.kind === 'dont' && r.ingredient_key).map((r) => r.ingredient_key));
+  const availMap = Object.fromEntries(avail.data.map((a) => [a.recipe_id, a]));
+  const ingMap = {};
+  for (const i of ings.data) (ingMap[i.recipe_id] = ingMap[i.recipe_id] || []).push(i);
+  cache.recipeIngredients = ingMap;
+
+  let hidden = 0;
+  const shown = rec.data.filter((r) => {
+    const keys = (ingMap[r.id] || []).map((i) => i.ingredient_key);
+    if (keys.some((k) => donts.has(k))) { hidden++; return false; }
+    return true;
+  }).filter((r) => {
+    if (!recipeFilter) return true;
+    const q = recipeFilter.toLowerCase();
+    return (r.title_en || '').toLowerCase().includes(q) || (r.title_ar || '').includes(recipeFilter);
+  });
+
+  let html = `<input id="rsearch" placeholder="${esc(t('search'))}" value="${esc(recipeFilter)}" oninput="filterRecipes(this.value)">`;
+  if (hidden) html += `<p class="muted">${hidden} ${esc(t('hiddenByRules'))}</p>`;
+
+  if (openRecipeId) {
+    const r = rec.data.find((x) => x.id === openRecipeId);
+    if (r) {
+      const list = ingMap[r.id] || [];
+      html += `<div class="card"><h2 style="margin-top:0">${esc(nameOf(r.title_en, r.title_ar))}</h2>
+        <p class="muted">${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</p>
+        <h3>${esc(t('ingredients'))}</h3><ul class="clean">`;
+      for (const i of list) {
+        const have = inStock.has(i.ingredient_key);
+        const mark = i.optional ? '' : (have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
+        html += `<li><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}${i.optional ? ' · (optional)' : ''}</span>${mark}</div></li>`;
+      }
+      html += `</ul><h3>${esc(t('steps'))}</h3><p class="step">${esc(nameOf(r.steps_en, r.steps_ar)).replace(/\n/g, '<br>')}</p>
+        <button class="btn secondary" onclick="closeRecipe()">${esc(t('back'))}</button></div>`;
+    }
+    return html;
+  }
+
+  if (!shown.length) html += `<p class="muted">${esc(t('noRecipes'))}</p>`;
+  for (const r of shown) {
+    const a = availMap[r.id];
+    const ready = a && a.in_stock_count >= a.required_count;
+    const status = ready
+      ? `<span class="tag">${esc(t('ready'))}</span>`
+      : `<span class="tag warn">${esc(t('missing'))} ${a ? a.required_count - a.in_stock_count : '?'}</span>`;
+    html += `<div class="card" onclick="openRecipe('${r.id}')" style="cursor:pointer">
+      <div class="row"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong>${status}</div>
+      <div class="muted">${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</div></div>`;
+  }
+  return html;
+}
+
+let filterTimer = null;
+function filterRecipes(v) {
+  recipeFilter = v;
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(loadTab, 250);
+}
+async function openRecipe(id) { openRecipeId = id; await loadTab(); }
+async function closeRecipe() { openRecipeId = null; await loadTab(); }
+
+// ---------------------------------------------------------------
+// RULES: dos and don'ts
+// ---------------------------------------------------------------
+async function screenRules() {
+  const { data, error } = await sb
+    .from('rules')
+    .select('id, kind, text_en, text_ar, ingredient_key')
+    .eq('household_id', hh.id)
+    .order('created_at');
+  if (error) throw error;
+  const editable = can.rules();
+  let html = `<p>${esc(t('rulesIntro'))}</p>`;
+  if (!data.length) html += `<div class="card"><p>${esc(t('noRules'))}</p></div>`;
+  for (const kind of ['dont', 'do']) {
+    const list = data.filter((r) => r.kind === kind);
+    if (!list.length) continue;
+    html += `<h2>${esc(t(kind === 'do' ? 'doLabel' : 'dontLabel'))}</h2><div class="card"><ul class="clean">`;
+    for (const r of list) {
+      const del = editable ? `<button class="btn small danger" onclick="removeRule('${r.id}')">${esc(t('deleteRule'))}</button>` : '';
+      html += `<li><div class="row"><span>${esc(nameOf(r.text_en, r.text_ar))}</span>${del}</div></li>`;
+    }
+    html += '</ul></div>';
+  }
+  if (editable) {
+    if (ruleForm) {
+      html += `<div class="card"><h2 style="margin-top:0">${esc(t('addRule'))}</h2>
+        <label>&nbsp;</label>
+        <select id="rkind"><option value="dont">${esc(t('dontLabel'))}</option><option value="do">${esc(t('doLabel'))}</option></select>
+        <label>${esc(t('ruleText'))}</label><input id="rtext">
+        <label>${esc(t('ruleTextAr'))}</label><input id="rtext_ar">
+        <label>${esc(t('ruleIngredient'))}</label><input id="rkey">
+        <button class="btn" onclick="saveRule()">${esc(t('save'))}</button>
+        <button class="btn secondary" onclick="toggleRuleForm(false)">${esc(t('cancel'))}</button></div>`;
+    } else {
+      html += `<button class="btn" onclick="toggleRuleForm(true)">${esc(t('addRule'))}</button>`;
+    }
+  }
+  return html;
+}
+
+async function toggleRuleForm(on) { ruleForm = on; await loadTab(); }
+
+async function saveRule() {
+  const text = document.getElementById('rtext').value.trim();
+  if (!text) return setProblem(new Error(t('ruleText')));
+  const key = document.getElementById('rkey').value.trim().toLowerCase() || null;
+  const { error } = await sb.from('rules').insert({
+    household_id: hh.id,
+    kind: document.getElementById('rkind').value,
+    text_en: text,
+    text_ar: document.getElementById('rtext_ar').value.trim() || null,
+    ingredient_key: key,
+    created_by: session.user.id,
+  });
+  if (error) return setProblem(error);
+  ruleForm = false;
+  setNotice(t('ok'));
+  await loadTab();
+}
+
+async function removeRule(id) {
+  if (!confirm(t('confirmDeleteRule'))) return;
+  const { error } = await sb.from('rules').delete().eq('id', id);
+  if (error) return setProblem(error);
+  await loadTab();
+}
+
+// ---------------------------------------------------------------
+// PEOPLE: admin only
+// ---------------------------------------------------------------
+async function screenMembers() {
+  const [mem, inv] = await Promise.all([
+    sb.from('household_members').select('user_id, role, profiles(full_name, email)').eq('household_id', hh.id),
+    sb.from('invitations').select('id, email, role').eq('household_id', hh.id).eq('accepted', false),
+  ]);
+  if (mem.error) throw mem.error;
+  if (inv.error) throw inv.error;
+  let html = '<h2 style="margin-top:0">' + esc(t('members')) + '</h2><div class="card"><ul class="clean">';
+  for (const m of mem.data) {
+    const who = m.profiles?.full_name || m.profiles?.email || '';
+    const isMe = m.user_id === session.user.id;
+    const select = `<select onchange="changeRole('${m.user_id}', this.value)" ${isMe ? 'disabled' : ''}>
+      ${['admin', 'member', 'helper'].map((r) => `<option value="${r}" ${m.role === r ? 'selected' : ''}>${esc(t('role_' + r))}</option>`).join('')}</select>`;
+    html += `<li><div><strong>${esc(who)}</strong></div>${select}</li>`;
+  }
+  html += '</ul></div>';
+  if (inv.data.length) {
+    html += `<h3>${esc(t('pending'))}</h3><div class="card"><ul class="clean">`;
+    for (const i of inv.data) html += `<li>${esc(i.email)} · ${esc(t('role_' + i.role))}</li>`;
+    html += '</ul></div>';
+  }
+  html += `<div class="card"><h2 style="margin-top:0">${esc(t('inviteTitle'))}</h2>
+    <label>${esc(t('inviteEmail'))}</label><input id="iemail" type="email" autocomplete="email">
+    <label>${esc(t('inviteRole'))}</label>
+    <select id="irole">${['member', 'helper', 'admin'].map((r) => `<option value="${r}">${esc(t('role_' + r))}</option>`).join('')}</select>
+    <button class="btn" onclick="sendInvite()">${esc(t('invite'))}</button></div>`;
+  return html;
+}
+
+async function changeRole(userId, role) {
+  const { error } = await sb.from('household_members').update({ role }).eq('household_id', hh.id).eq('user_id', userId);
+  if (error) return setProblem(error);
+  setNotice(t('ok'));
+  await loadTab();
+}
+
+async function sendInvite() {
+  const email = document.getElementById('iemail').value.trim().toLowerCase();
+  const role = document.getElementById('irole').value;
+  if (!email) return setProblem(new Error(t('inviteEmail')));
+  const { error } = await sb.rpc('invite_member', { p_household: hh.id, p_email: email, p_role: role });
+  if (error) return setProblem(error);
+  setNotice(t('ok'));
+  await loadTab();
+}
+
+// ---------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------
+async function start() {
+  applyLang();
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  if (session) {
+    await loadHousehold();
+    tab = tab || 'today';
+    if (hh) await loadTab(); else render();
+  } else {
+    render();
+  }
+  sb.auth.onAuthStateChange(async (event, s) => {
+    if (event === 'SIGNED_IN' && s && (!session || session.user.id !== s.user.id)) {
+      session = s;
+      await loadHousehold();
+      if (hh) await loadTab(); else render();
+    }
+    if (event === 'SIGNED_OUT') { session = null; hh = null; render(); }
+  });
+}
+start();
+</script>
 </body>
 </html>
