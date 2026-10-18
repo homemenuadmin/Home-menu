@@ -17,6 +17,7 @@ let mealForm = false;
 let itemForm = false;
 let ruleForm = false;
 let cache = {};           // data loaded for the current tab
+let needsHousehold = false; // signed in, but not yet in any household
 
 const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -59,6 +60,11 @@ function render() {
   if (!session) {
     nav.hidden = true;
     app.innerHTML = renderSignIn();
+    return;
+  }
+  if (!hh && needsHousehold) {
+    nav.hidden = true;
+    app.innerHTML = renderJoin();
     return;
   }
   if (!hh) {
@@ -121,27 +127,61 @@ async function signOut() {
 }
 
 async function loadHousehold() {
-  await sb.rpc('claim_invitations');
-  const read = () => sb
+  needsHousehold = false;
+  const { data, error } = await sb
     .from('household_members')
     .select('household_id, role, households(name)')
     .eq('user_id', session.user.id)
     .order('created_at', { ascending: false })
     .limit(1);
-  let { data, error } = await read();
   if (error) { problem = error.message; hh = null; return; }
   if (!data || !data.length) {
-    // A new person starts with their own household. Family members can be added later from People.
-    const made = await sb.rpc('create_household', { p_name: t('myHousehold') });
-    if (made.error) { problem = made.error.message; hh = null; return; }
-    ({ data, error } = await read());
-    if (error) { problem = error.message; hh = null; return; }
+    // Not in a household yet: ask for an invite code, or create one.
+    hh = null;
+    needsHousehold = true;
+    return;
   }
-  const row = data && data[0];
-  hh = row ? { id: row.household_id, role: row.role, name: row.households?.name || '' } : null;
+  const row = data[0];
+  hh = { id: row.household_id, role: row.role, name: row.households?.name || '' };
 }
 
 async function retryLoad() {
+  problem = '';
+  await loadHousehold();
+  if (hh) await loadTab(); else render();
+}
+
+function renderJoin() {
+  return `
+    <div class="top"><h1>Home Menu</h1><div>${langButton()}</div></div>
+    ${messages()}
+    <div class="card">
+      <h2 style="margin-top:0">${esc(t('joinTitle'))}</h2>
+      <p class="muted">${esc(t('joinText'))}</p>
+      <label>${esc(t('inviteCode'))}</label>
+      <input id="joincode" autocapitalize="characters" autocomplete="off" placeholder="${esc(t('inviteCodeExample'))}">
+      <button class="btn" onclick="joinWithCode()">${esc(t('joinWithCode'))}</button>
+    </div>
+    <div class="card">
+      <button class="btn secondary" onclick="createHousehold()">${esc(t('createOwn'))}</button>
+    </div>
+    <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
+}
+
+async function joinWithCode() {
+  const code = document.getElementById('joincode').value.trim();
+  if (!code) return setProblem(new Error(t('inviteCode')));
+  const { error } = await sb.rpc('redeem_invite_code', { p_code: code });
+  if (error) return setProblem(error);
+  problem = '';
+  await loadHousehold();
+  if (hh) { notice = t('joined'); await loadTab(); } else render();
+}
+
+async function createHousehold() {
+  // A new household starts with this person as its admin. Family members can join with a code.
+  const { error } = await sb.rpc('create_household', { p_name: t('myHousehold') });
+  if (error) return setProblem(error);
   problem = '';
   await loadHousehold();
   if (hh) await loadTab(); else render();

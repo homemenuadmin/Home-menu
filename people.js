@@ -1,16 +1,18 @@
-// People tab (admin only): members and invitations.
+// People tab (admin only): members and invite codes.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 // ---------------------------------------------------------------
 // PEOPLE: admin only
 // ---------------------------------------------------------------
 async function screenMembers() {
-  const [mem, inv] = await Promise.all([
+  const [mem, codes] = await Promise.all([
     sb.from('household_members').select('user_id, role, profiles(full_name, email)').eq('household_id', hh.id),
-    sb.from('invitations').select('id, email, role').eq('household_id', hh.id).eq('accepted', false),
+    sb.from('invite_codes').select('code, role, expires_at')
+      .eq('household_id', hh.id).eq('revoked', false).is('used_at', null)
+      .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
   ]);
   if (mem.error) throw mem.error;
-  if (inv.error) throw inv.error;
+  if (codes.error) throw codes.error;
   let html = '<h2 style="margin-top:0">' + esc(t('members')) + '</h2><div class="card"><ul class="clean">';
   for (const m of mem.data) {
     const who = m.profiles?.full_name || m.profiles?.email || '';
@@ -20,16 +22,23 @@ async function screenMembers() {
     html += `<li><div><strong>${esc(who)}</strong></div>${select}</li>`;
   }
   html += '</ul></div>';
-  if (inv.data.length) {
-    html += `<h3>${esc(t('pending'))}</h3><div class="card"><ul class="clean">`;
-    for (const i of inv.data) html += `<li>${esc(i.email)} · ${esc(t('role_' + i.role))}</li>`;
-    html += '</ul></div>';
-  }
-  html += `<div class="card"><h2 style="margin-top:0">${esc(t('inviteTitle'))}</h2>
-    <label>${esc(t('inviteEmail'))}</label><input id="iemail" type="email" autocomplete="email">
+  html += `<div class="card"><h2 style="margin-top:0">${esc(t('codeTitle'))}</h2>
+    <p class="muted">${esc(t('codeNote'))}</p>
     <label>${esc(t('inviteRole'))}</label>
-    <select id="irole">${['member', 'helper', 'admin'].map((r) => `<option value="${r}">${esc(t('role_' + r))}</option>`).join('')}</select>
-    <button class="btn" onclick="sendInvite()">${esc(t('invite'))}</button></div>`;
+    <select id="crole">${['member', 'helper', 'admin'].map((r) => `<option value="${r}">${esc(t('role_' + r))}</option>`).join('')}</select>
+    <button class="btn" onclick="createInviteCode()">${esc(t('createCode'))}</button>`;
+  if (codes.data.length) {
+    html += '<ul class="clean">';
+    for (const c of codes.data) {
+      const expires = new Date(c.expires_at).toLocaleDateString(t('dateLocale'));
+      html += `<li><div class="row"><div><strong class="code">${esc(c.code)}</strong> · ${esc(t('role_' + c.role))}<div class="muted">${esc(t('expires'))} ${esc(expires)}</div></div>
+        <button class="btn small danger" onclick="revokeInviteCode('${esc(c.code)}')">${esc(t('revokeCode'))}</button></div></li>`;
+    }
+    html += '</ul>';
+  } else {
+    html += `<p class="muted">${esc(t('noCodes'))}</p>`;
+  }
+  html += '</div>';
   return html;
 }
 
@@ -40,12 +49,19 @@ async function changeRole(userId, role) {
   await loadTab();
 }
 
-async function sendInvite() {
-  const email = document.getElementById('iemail').value.trim().toLowerCase();
-  const role = document.getElementById('irole').value;
-  if (!email) return setProblem(new Error(t('inviteEmail')));
-  const { error } = await sb.rpc('invite_member', { p_household: hh.id, p_email: email, p_role: role });
+async function createInviteCode() {
+  const role = document.getElementById('crole').value;
+  const { data, error } = await sb.rpc('create_invite_code', { p_household: hh.id, p_role: role });
+  if (error) return setProblem(error);
+  setNotice(t('codeMade') + ' ' + data);
+  await loadTab();
+}
+
+async function revokeInviteCode(code) {
+  if (!confirm(t('confirmRevokeCode'))) return;
+  const { error } = await sb.from('invite_codes').update({ revoked: true }).eq('code', code);
   if (error) return setProblem(error);
   setNotice(t('ok'));
   await loadTab();
 }
+
