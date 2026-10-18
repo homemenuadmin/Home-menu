@@ -86,6 +86,8 @@ const TEXT = {
     welcomeText: 'If someone in your household invited you, sign in with that Gmail address and you will join automatically. Otherwise, create a new household below.',
     householdName: 'Household name',
     householdExample: 'For example: Al-Farsi family',
+    myHousehold: 'My household',
+    retry: 'Try again',
     createHousehold: 'Create household',
     today: 'Today',
     kitchen: 'Kitchen',
@@ -160,6 +162,8 @@ const TEXT = {
     welcomeText: 'إذا دعاك أحد من أسرتك، سجّل الدخول بعنوان Gmail الذي دعاك عليه وستنضم تلقائيا. وإلا أنشئ أسرة جديدة بالأسفل.',
     householdName: 'اسم الأسرة',
     householdExample: 'مثال: عائلة الفارسي',
+    myHousehold: 'بيتي',
+    retry: 'حاول مرة أخرى',
     createHousehold: 'إنشاء الأسرة',
     today: 'اليوم',
     kitchen: 'المطبخ',
@@ -290,7 +294,10 @@ function render() {
   }
   if (!hh) {
     nav.hidden = true;
-    app.innerHTML = renderCreateHousehold();
+    app.innerHTML = `<div class="top"><h1>Home Menu</h1><div>${langButton()}</div></div>
+      ${messages()}
+      <div class="card"><button class="btn" onclick="retryLoad()">${esc(t('retry'))}</button></div>
+      <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
     return;
   }
   nav.hidden = false;
@@ -330,19 +337,6 @@ function renderSignIn() {
     </div>`;
 }
 
-function renderCreateHousehold() {
-  return `
-    <div class="top"><h1>${t('welcome')}</h1><div>${langButton()}</div></div>
-    <p>${esc(t('welcomeText'))}</p>
-    ${messages()}
-    <div class="card">
-      <label for="hname">${t('householdName')}</label>
-      <input id="hname" placeholder="${esc(t('householdExample'))}">
-      <button class="btn" onclick="createHousehold()">${t('createHousehold')}</button>
-    </div>
-    <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
-}
-
 async function signIn() {
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
@@ -357,26 +351,31 @@ async function signOut() {
   render();
 }
 
-async function createHousehold() {
-  const name = (document.getElementById('hname').value || '').trim();
-  if (!name) { problem = t('householdName'); render(); return; }
-  const { error } = await sb.rpc('create_household', { p_name: name });
-  if (error) return setProblem(error);
-  await loadHousehold();
-  tab = 'today';
-  render();
-}
-
 async function loadHousehold() {
   await sb.rpc('claim_invitations');
-  const { data, error } = await sb
+  const read = () => sb
     .from('household_members')
     .select('household_id, role, households(name)')
     .eq('user_id', session.user.id)
+    .order('created_at', { ascending: false })
     .limit(1);
+  let { data, error } = await read();
   if (error) { problem = error.message; hh = null; return; }
+  if (!data || !data.length) {
+    // A new person starts with their own household. Family members can be added later from People.
+    const made = await sb.rpc('create_household', { p_name: t('myHousehold') });
+    if (made.error) { problem = made.error.message; hh = null; return; }
+    ({ data, error } = await read());
+    if (error) { problem = error.message; hh = null; return; }
+  }
   const row = data && data[0];
   hh = row ? { id: row.household_id, role: row.role, name: row.households?.name || '' } : null;
+}
+
+async function retryLoad() {
+  problem = '';
+  await loadHousehold();
+  if (hh) await loadTab(); else render();
 }
 
 // ---------------------------------------------------------------
