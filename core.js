@@ -18,6 +18,7 @@ let itemForm = false;
 let ruleForm = false;
 let cache = {};           // data loaded for the current tab
 let needsHousehold = false; // signed in, but not yet in any household
+let drawerOpen = false;     // the side menu (tabs and profile)
 
 const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,10 +76,11 @@ function render() {
       <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
     return;
   }
-  nav.hidden = false;
-  nav.innerHTML = navHtml();
+  nav.hidden = !drawerOpen;
+  nav.innerHTML = drawerHtml();
   app.innerHTML = `
     <div class="top">
+      <button class="icon-btn" onclick="openDrawer()" aria-label="${esc(t('menu'))}" aria-expanded="${drawerOpen}">${MENU_ICON}</button>
       <div>
         <div class="muted">${esc(hh.name)}</div>
         <h1>${esc(t(tab))}</h1>
@@ -86,15 +88,31 @@ function render() {
       <div>${langButton()}</div>
     </div>
     ${messages()}
-    <div id="screen">${cache.screenHtml || ''}</div>
-    <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
+    <div id="screen">${cache.screenHtml || ''}</div>`;
 }
 
-function navHtml() {
-  const tabs = ['today', 'kitchen', 'recipes', 'rules'];
-  if (can.people()) tabs.push('members');
-  return tabs.map((k) => `<button class="${k === tab ? 'on' : ''}" onclick="go('${k}')">${esc(t(k))}</button>`).join('');
+// The side menu: the tabs, and Profile (where sign out lives).
+const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+
+function drawerHtml() {
+  const items = ['today', 'kitchen', 'recipes', 'rules'];
+  if (can.people()) items.push('members');
+  items.push('profile');
+  return `
+    <div class="scrim" onclick="closeDrawer()"></div>
+    <aside class="drawer" role="dialog" aria-label="${esc(t('menu'))}">
+      <div class="drawer-head">
+        <div class="muted">${esc(hh.name)}</div>
+        <button class="btn secondary small" onclick="closeDrawer()">${esc(t('close'))}</button>
+      </div>
+      <ul class="clean">
+        ${items.map((k) => `<li><button class="drawer-item ${k === tab ? 'on' : ''}" onclick="go('${k}')">${esc(t(k))}</button></li>`).join('')}
+      </ul>
+    </aside>`;
 }
+
+function openDrawer() { drawerOpen = true; render(); }
+function closeDrawer() { drawerOpen = false; render(); }
 
 // ---------------------------------------------------------------
 // Sign in and households
@@ -192,6 +210,7 @@ async function createHousehold() {
 // ---------------------------------------------------------------
 async function go(k) {
   tab = k;
+  drawerOpen = false;
   notice = ''; problem = '';
   mealForm = false; itemForm = false; ruleForm = false; openRecipeId = null;
   await loadTab();
@@ -206,6 +225,7 @@ async function loadTab() {
     if (tab === 'recipes') cache.screenHtml = await screenRecipes();
     if (tab === 'rules') cache.screenHtml = await screenRules();
     if (tab === 'members') cache.screenHtml = await screenMembers();
+    if (tab === 'profile') cache.screenHtml = await screenProfile();
   } catch (e) {
     cache.screenHtml = '';
     problem = t('errorPrefix') + (e.message || e);
