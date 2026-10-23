@@ -129,7 +129,8 @@ create table if not exists member_settings (
   setup_done boolean not null default false,
   cook_answer text check (cook_answer in ('cook', 'not_cook', 'hybrid')),
   meals_per_day text[] not null default '{}',   -- breakfast, lunch, dinner, snack
-  first_meal_time text,                         -- HH:MM
+  first_meal_time text,                         -- HH:MM (earliest meal)
+  meal_times jsonb not null default '{}'::jsonb, -- time for each chosen meal, for example {"breakfast": "07:30"}
   prep_home text[] not null default '{}',       -- days of the week
   prep_school text[] not null default '{}',     -- days of the week
   diet_choices text[] not null default '{}',    -- picky, low_calorie, eat_everything
@@ -148,5 +149,21 @@ create policy "own settings" on member_settings for all
 drop policy if exists "household reads settings" on member_settings;
 create policy "household reads settings" on member_settings for select
   using (is_member(household_id));
+
+-- Each person sets their own role from the cook answer. Only the owner's policy can change other people's roles,
+-- so this function lets a family member change just their own row.
+create or replace function public.set_my_role(p_household uuid, p_role text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_role not in ('member', 'helper') then
+    raise exception 'Unknown role';
+  end if;
+  update household_members set role = p_role
+  where household_id = p_household and user_id = auth.uid();
+  if not found then
+    raise exception 'You are not in this household';
+  end if;
+end;
+$$;
 
 notify pgrst, 'reload schema';
