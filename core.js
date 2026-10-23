@@ -7,7 +7,7 @@
 let lang = 'en';
 try { lang = localStorage.getItem('homemenu-lang') || 'en'; } catch (e) {}
 let session = null;
-let hh = null;            // { id, name, role }
+let hh = null;            // { id, name, role, owner }
 let tab = 'today';
 let notice = '';          // green/amber message
 let problem = '';         // red message
@@ -18,18 +18,21 @@ let itemForm = false;
 let ruleForm = false;
 let cache = {};           // data loaded for the current tab
 let needsHousehold = false; // signed in, but not yet in any household
+let needsSetup = false;     // in a household, but has not finished the first-time questions
 let drawerOpen = false;     // the side menu (tabs and profile)
 
 const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nameOf = (en, ar) => (lang === 'ar' && ar) ? ar : (en || ar || '');
+// Two roles: 'helper' is the cook, 'member' is a family member. The owner is a flag on top of a role.
 const can = {
-  stock: () => hh && (hh.role === 'admin' || hh.role === 'helper'),
-  rules: () => hh && (hh.role === 'admin' || hh.role === 'member'),
-  approve: () => hh && (hh.role === 'admin' || hh.role === 'member'),
-  cook: () => hh && (hh.role === 'admin' || hh.role === 'helper'),
+  stock: () => !!hh && hh.role === 'helper',
+  cook: () => !!hh && hh.role === 'helper',
+  rules: () => !!hh && (hh.role === 'member' || hh.owner),
+  approve: () => !!hh && (hh.role === 'member' || hh.owner),
   suggest: () => !!hh,
-  people: () => hh && hh.role === 'admin',
+  people: () => !!hh && hh.owner,
+  deleteMeal: () => !!hh && hh.owner,
 };
 
 function applyLang() {
@@ -74,6 +77,13 @@ function render() {
       ${messages()}
       <div class="card"><button class="btn" onclick="retryLoad()">${esc(t('retry'))}</button></div>
       <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
+    return;
+  }
+  if (needsSetup) {
+    nav.hidden = true;
+    app.innerHTML = `<div class="top"><h1>Home Menu</h1><div>${langButton()}</div></div>
+      ${messages()}
+      <div id="screen">${renderSetup()}</div>`;
     return;
   }
   nav.hidden = !drawerOpen;
@@ -141,14 +151,16 @@ async function signIn() {
 async function signOut() {
   await sb.auth.signOut();
   session = null; hh = null; cache = {}; notice = ''; problem = '';
+  needsSetup = false; setupData = null; setupStep = 0;
   render();
 }
 
 async function loadHousehold() {
   needsHousehold = false;
+  needsSetup = false;
   const { data, error } = await sb
     .from('household_members')
-    .select('household_id, role, households(name)')
+    .select('household_id, role, is_owner, households(name)')
     .eq('user_id', session.user.id)
     .order('created_at', { ascending: false })
     .limit(1);
@@ -160,7 +172,10 @@ async function loadHousehold() {
     return;
   }
   const row = data[0];
-  hh = { id: row.household_id, role: row.role, name: row.households?.name || '' };
+  hh = { id: row.household_id, role: row.role, owner: !!row.is_owner, name: row.households?.name || '' };
+  // Everyone answers the first-time questions once, after joining or creating a household.
+  const { data: s } = await sb.from('member_settings').select('setup_done').eq('user_id', session.user.id).maybeSingle();
+  needsSetup = !(s && s.setup_done);
 }
 
 async function retryLoad() {
@@ -197,7 +212,7 @@ async function joinWithCode() {
 }
 
 async function createHousehold() {
-  // A new household starts with this person as its admin. Family members can join with a code.
+  // The person who creates a household becomes its owner. Everyone else joins with an invite code.
   const { error } = await sb.rpc('create_household', { p_name: t('myHousehold') });
   if (error) return setProblem(error);
   problem = '';
@@ -234,5 +249,5 @@ async function loadTab() {
 }
 
 function roleNote() {
-  return hh.role === 'helper' ? t('helperNote') : hh.role === 'admin' ? t('adminNote') : t('memberNote');
+  return hh.role === 'helper' ? t('helperNote') : t('memberNote');
 }

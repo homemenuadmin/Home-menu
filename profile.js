@@ -3,6 +3,7 @@
 
 async function screenProfile() {
   const email = session?.user?.email || '';
+  const owner = hh.owner ? ` <span class="tag gold">${esc(t('ownerTag'))}</span>` : '';
   return `
     <div class="card">
       <div class="muted">${esc(t('signedInAs'))}</div>
@@ -10,8 +11,9 @@ async function screenProfile() {
     </div>
     <div class="card">
       <div class="muted">${esc(t('yourRole'))}</div>
-      <div><span class="tag">${esc(t('role_' + hh.role))}</span></div>
+      <div><span class="tag">${esc(t('role_' + hh.role))}</span>${owner}</div>
       <p>${esc(roleNote())}</p>
+      ${hh.owner ? `<p class="muted">${esc(t('ownerNote'))}</p>` : ''}
     </div>
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
 }
