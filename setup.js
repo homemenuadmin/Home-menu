@@ -6,6 +6,7 @@
 const SETUP_MEALS = ['breakfast', 'lunch', 'dinner', 'snack'];
 const SETUP_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const SETUP_DIET = ['picky', 'low_calorie', 'eat_everything'];
+const DEFAULT_MEAL_TIMES = { breakfast: '07:30', lunch: '13:30', dinner: '20:00', snack: '17:00' };
 let setupStep = 0;
 let setupData = null;
 
@@ -13,7 +14,7 @@ function blankSetup() {
   return {
     cook_answer: null,
     meals_per_day: ['breakfast', 'lunch', 'dinner'],
-    first_meal_time: '08:00',
+    meal_times: {},
     prep_home: [],
     prep_school: [],
     diet_choices: [],
@@ -25,13 +26,24 @@ function blankSetup() {
   };
 }
 
+// Steps depend on earlier answers: people who do not cook are not asked which days they cook.
 function setupSteps() {
-  return ['cook', 'meals', 'firstMeal', 'prepHome', 'prepSchool', 'diet', 'tastes', 'spice', 'salt'];
+  const steps = ['cook', 'meals', 'mealTimes'];
+  if (setupData.cook_answer !== 'not_cook') steps.push('prepHome');
+  return steps.concat(['prepSchool', 'diet', 'tastes', 'spice', 'salt']);
+}
+
+// Selected meals, in day order, for example breakfast, lunch, dinner.
+function selectedMeals() {
+  return SETUP_MEALS.filter((m) => setupData.meals_per_day.includes(m));
 }
 
 // Copy what is typed in the text boxes into the answers, so nothing is lost when a button re-draws the screen.
 function collectSetupInputs() {
-  document.querySelectorAll('[data-setup]').forEach((el) => { setupData[el.dataset.field] = el.value; });
+  document.querySelectorAll('[data-setup]').forEach((el) => {
+    if (el.dataset.meal) setupData.meal_times[el.dataset.meal] = el.value;
+    else setupData[el.dataset.field] = el.value;
+  });
 }
 
 function pickSetup(field, value) {
@@ -71,9 +83,10 @@ function setupStepHtml(step) {
     return `<h2 style="margin-top:0">${esc(t('mealsQ'))}</h2>
       <div>${setupChips('meals_per_day', SETUP_MEALS.map((m) => [m, t(m)]), setupData.meals_per_day)}</div>`;
   }
-  if (step === 'firstMeal') {
-    return `<h2 style="margin-top:0">${esc(t('firstMealQ'))}</h2>
-      <input type="time" data-setup data-field="first_meal_time" value="${esc(setupData.first_meal_time || '')}">`;
+  if (step === 'mealTimes') {
+    return `<h2 style="margin-top:0">${esc(t('mealTimesQ'))}</h2>` + selectedMeals().map((m) =>
+      `<label>${esc(t(m))}</label>
+       <input type="time" data-setup data-meal="${m}" value="${esc(setupData.meal_times[m] || DEFAULT_MEAL_TIMES[m])}">`).join('');
   }
   if (step === 'prepHome') {
     return `<h2 style="margin-top:0">${esc(t('prepHomeQ'))}</h2>
@@ -134,6 +147,10 @@ async function setupNext() {
   const step = steps[setupStep];
   if (step === 'cook' && !setupData.cook_answer) { problem = t('pickOne'); return render(); }
   if (step === 'meals' && !setupData.meals_per_day.length) { problem = t('pickOne'); return render(); }
+  if (step === 'mealTimes') {
+    // Every chosen meal gets a time, even if the box was left empty.
+    selectedMeals().forEach((m) => { if (!setupData.meal_times[m]) setupData.meal_times[m] = DEFAULT_MEAL_TIMES[m]; });
+  }
   problem = '';
   if (setupStep < steps.length - 1) { setupStep++; return render(); }
   await saveSetup();
@@ -147,7 +164,8 @@ async function saveSetup() {
     setup_done: true,
     cook_answer: d.cook_answer,
     meals_per_day: d.meals_per_day,
-    first_meal_time: d.first_meal_time || null,
+    meal_times: Object.fromEntries(selectedMeals().map((m) => [m, d.meal_times[m] || DEFAULT_MEAL_TIMES[m]])),
+    first_meal_time: selectedMeals().map((m) => d.meal_times[m] || DEFAULT_MEAL_TIMES[m]).sort()[0] || null,
     prep_home: d.prep_home,
     prep_school: d.prep_school,
     diet_choices: d.diet_choices,
