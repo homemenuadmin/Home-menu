@@ -115,6 +115,27 @@
 .home-actions .btn { flex: 1 1 140px; }
 
 /* ---------------------------------------------------------------
+   Loading: soft placeholder shapes, and a dimmed screen while it refreshes
+   --------------------------------------------------------------- */
+#screen { transition: opacity .25s ease; }
+#screen.busy { opacity: .5; pointer-events: none; }
+.skel-wrap { display: grid; gap: 12px; padding-top: 4px; }
+.skel {
+  border-radius: 14px; min-height: 16px;
+  background: linear-gradient(90deg, #E3ECEA 25%, #F3F7F6 50%, #E3ECEA 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+.skel-title { height: 26px; width: 45%; }
+.skel-card { height: 96px; }
+.skel-line { height: 14px; width: 80%; }
+.skel-line.short { width: 55%; }
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: -100% 0; }
+}
+
+/* ---------------------------------------------------------------
    Respect "reduce motion" on phones and computers: keep the end state, skip the movement.
    --------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {

@@ -22,6 +22,7 @@ let needsSetup = false;     // in a household, but has not finished the first-ti
 let drawerOpen = false;     // the side menu (tabs and profile)
 let lastViewKey = '';       // the screen on show, so only a real change of screen animates
 let testPassword = null;    // kept only while the test account is signed in, so sign out can reset it
+let screenBusy = false;     // true while a screen is refreshing with its old content still showing
 // Which screen is showing: 'main:<tab>' or 'setup:<step>'. Returns the class that plays the entrance once per change.
 function screenClass(key) {
   if (cache.loading) return '';
@@ -104,7 +105,7 @@ function render() {
   if (!hh.tourDone && tourStep === null) {
     startTour();
     nav.hidden = true;
-    app.innerHTML = `<p class="center muted">${esc(t('loading'))}</p>`;
+    app.innerHTML = `<div class="top"><div></div><div></div></div>${skeletonHtml()}`;
     setTimeout(() => loadTab(), 0);
     return;
   }
@@ -126,7 +127,7 @@ function render() {
       <div>${langButton()}</div>
     </div>
     ${messages()}
-    <div id="screen" class="${screenClass('main:' + tab)}">${cache.screenHtml || ''}</div>
+    <div id="screen" class="${screenClass('main:' + tab)}${screenBusy ? ' busy' : ''}">${cache.screenHtml || ''}</div>
     ${tourHtml()}`;
 }
 
@@ -291,7 +292,9 @@ async function go(k) {
 }
 
 async function loadTab() {
-  cache.screenHtml = '<p class="muted">' + esc(t('loading')) + '</p>';
+  // Same screen: keep what is showing, dimmed, until the new data arrives. Different screen: soft placeholder shapes.
+  screenBusy = cache.screenTab === tab;
+  if (!screenBusy) cache.screenHtml = skeletonHtml();
   cache.loading = true;
   render();
   try {
@@ -307,7 +310,19 @@ async function loadTab() {
     problem = t('errorPrefix') + (e.message || e);
   }
   cache.loading = false;
+  screenBusy = false;
+  cache.screenTab = tab;
   render();
+}
+
+// Soft placeholder shapes shown while a new screen loads (instead of a blank page with text).
+function skeletonHtml() {
+  return `<div class="skel-wrap" aria-hidden="true">
+    <div class="skel skel-title"></div>
+    <div class="skel skel-card"></div>
+    <div class="skel skel-line"></div>
+    <div class="skel skel-line short"></div>
+  </div>`;
 }
 
 function roleNote() {

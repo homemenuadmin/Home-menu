@@ -62,6 +62,7 @@ function startTour() {
 async function showTourStep() {
   const s = tourList[tourStep];
   drawerOpen = !!s.menu;
+  notice = ''; problem = '';
   if (s.tab !== tab) {
     tab = s.tab;
     await loadTab();
