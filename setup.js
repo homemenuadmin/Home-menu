@@ -179,8 +179,7 @@ async function saveSetup() {
   if (error) return setProblem(error);
   // The cook answer sets the role: cooks get the cook role, everyone else is a family member. Changeable later in People.
   const role = d.cook_answer === 'cook' ? 'helper' : 'member';
-  const { error: roleError } = await sb.from('household_members')
-    .update({ role }).eq('household_id', hh.id).eq('user_id', session.user.id);
+  const { error: roleError } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: role });
   if (roleError) return setProblem(roleError);
   hh.role = role;
   needsSetup = false;
@@ -188,6 +187,6 @@ async function saveSetup() {
   setupStep = 0;
   notice = t('setupDone');
   problem = '';
-  tab = 'today';
+  tab = 'home';
   await loadTab();
 }

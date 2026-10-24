@@ -10,7 +10,7 @@ async function start() {
   session = data.session;
   if (session) {
     await loadHousehold();
-    tab = tab || 'today';
+    tab = tab || 'home';
     if (hh) await loadTab(); else render();
   } else {
     render();

@@ -8,7 +8,7 @@ let lang = 'en';
 try { lang = localStorage.getItem('homemenu-lang') || 'en'; } catch (e) {}
 let session = null;
 let hh = null;            // { id, name, role, owner }
-let tab = 'today';
+let tab = 'home';
 let notice = '';          // green/amber message
 let problem = '';         // red message
 let recipeFilter = '';
@@ -87,11 +87,24 @@ function render() {
       <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
     return;
   }
+  if (needsSetup && showIntro) {
+    nav.hidden = true;
+    app.innerHTML = renderIntro();
+    return;
+  }
   if (needsSetup) {
     nav.hidden = true;
     app.innerHTML = `<div class="top"><h1>Home Menu</h1><div>${langButton()}</div></div>
       ${messages()}
       <div id="screen" class="${screenClass('setup:' + setupStep)}">${renderSetup()}</div>`;
+    return;
+  }
+  // After the first-time questions, the guided tour starts once (until it is finished or skipped).
+  if (!hh.tourDone && tourStep === null) {
+    startTour();
+    nav.hidden = true;
+    app.innerHTML = `<p class="center muted">${esc(t('loading'))}</p>`;
+    setTimeout(() => loadTab(), 0);
     return;
   }
   // The side menu is built once per household and role, so it can slide in and out without being redrawn.
@@ -112,7 +125,8 @@ function render() {
       <div>${langButton()}</div>
     </div>
     ${messages()}
-    <div id="screen" class="${screenClass('main:' + tab)}">${cache.screenHtml || ''}</div>`;
+    <div id="screen" class="${screenClass('main:' + tab)}">${cache.screenHtml || ''}</div>
+    ${tourHtml()}`;
 }
 
 // The side menu: the tabs, and Profile (where sign out lives).
@@ -121,7 +135,7 @@ const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 function drawerKey() { return [hh.id, hh.name, can.people()].join('|'); }
 
 function drawerHtml() {
-  const items = ['today', 'kitchen', 'recipes', 'rules'];
+  const items = ['home', 'today', 'kitchen', 'recipes', 'rules'];
   if (can.people()) items.push('members');
   items.push('profile');
   return `
@@ -168,6 +182,7 @@ async function signOut() {
   await sb.auth.signOut();
   session = null; hh = null; cache = {}; notice = ''; problem = '';
   needsSetup = false; setupData = null; setupStep = 0;
+  showIntro = false; tourStep = null; tourList = [];
   render();
 }
 
@@ -190,8 +205,11 @@ async function loadHousehold() {
   const row = data[0];
   hh = { id: row.household_id, role: row.role, owner: !!row.is_owner, name: row.households?.name || '' };
   // Everyone answers the first-time questions once, after joining or creating a household.
-  const { data: s } = await sb.from('member_settings').select('setup_done').eq('user_id', session.user.id).maybeSingle();
+  const { data: s } = await sb.from('member_settings').select('setup_done, tour_done').eq('user_id', session.user.id).maybeSingle();
   needsSetup = !(s && s.setup_done);
+  hh.tourDone = !!(s && s.tour_done);
+  // A brand-new person sees the welcome animation first, before the questions.
+  if (needsSetup && setupStep === 0) showIntro = true;
 }
 
 async function retryLoad() {
@@ -252,6 +270,7 @@ async function loadTab() {
   cache.loading = true;
   render();
   try {
+    if (tab === 'home') cache.screenHtml = await screenHome();
     if (tab === 'today') cache.screenHtml = await screenToday();
     if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
     if (tab === 'recipes') cache.screenHtml = await screenRecipes();
