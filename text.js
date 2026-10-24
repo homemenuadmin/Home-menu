@@ -7,6 +7,7 @@
 const TEXT = {
   en: {
     tagline: 'Plan meals together with your household',
+    letsStart: "Let's get you started",
     testAccount: 'Test account',
     testAccountNote: 'Signs in as a brand-new user. Everything from the last test is cleared.',
     testPassword: 'Test password',
@@ -166,6 +167,7 @@ const TEXT = {
   },
   ar: {
     tagline: 'خططوا للوجبات معا مع أسرتكم',
+    letsStart: 'هيا نبدأ',
     appName: 'Home Menu',
     welcomeSub: 'خططوا للوجبات معا، واحفظوا المطبخ مجهزا، وكونوا على اطلاع دائم.',
     getStarted: 'ابدأ',

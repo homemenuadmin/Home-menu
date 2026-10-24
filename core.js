@@ -84,7 +84,8 @@ function render() {
   const nav = document.getElementById('nav');
   if (!session) {
     nav.hidden = true;
-    app.innerHTML = renderSignIn();
+    // A new visitor sees the welcome first; then the sign-in screen animates in.
+    app.innerHTML = showIntro ? renderIntro() : `<div class="signin-in">${renderSignIn()}</div>`;
     return;
   }
   if (!hh && needsHousehold) {
@@ -98,11 +99,6 @@ function render() {
       ${messages()}
       <div class="card"><button class="btn" onclick="retryLoad()">${esc(t('retry'))}</button></div>
       <p class="center"><button class="btn secondary small" onclick="signOut()">${t('signOut')}</button></p>`;
-    return;
-  }
-  if (needsSetup && showIntro) {
-    nav.hidden = true;
-    app.innerHTML = renderIntro();
     return;
   }
   if (needsSetup) {
@@ -174,6 +170,7 @@ function renderSignIn() {
   return `
     <div class="center">
       <h1>Home Menu</h1>
+      <h2 class="signin-hello">${esc(t('letsStart'))}</h2>
       <p class="muted">${esc(TEXT[lang].tagline)}</p>
       <p><button class="chip" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button></p>
     </div>
@@ -245,8 +242,6 @@ async function loadHousehold() {
   const { data: s } = await sb.from('member_settings').select('setup_done, tour_done').eq('user_id', session.user.id).maybeSingle();
   needsSetup = !(s && s.setup_done);
   hh.tourDone = !!(s && s.tour_done);
-  // A brand-new person sees the welcome animation first, before the questions.
-  if (needsSetup && setupStep === 0) showIntro = true;
 }
 
 async function retryLoad() {
