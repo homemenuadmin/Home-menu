@@ -1,0 +1,127 @@
+/* Home tab, welcome animation, guided tour and the press/entrance motion.
+   Loaded after styles.css by index.html. */
+
+/* Keep the side menu above the screen, and the tour above the menu. */
+.nav { z-index: 50; }
+.tour { z-index: 60; }
+
+/* ---------------------------------------------------------------
+   Press feedback: buttons and tiles give a little when tapped
+   --------------------------------------------------------------- */
+.btn, .chip, .icon-btn, .tile, .drawer-item {
+  transition: transform .15s ease, background-color .2s ease, box-shadow .2s ease, opacity .2s ease, color .2s ease;
+}
+.btn:active, .chip:active, .icon-btn:active, .tile:active, .drawer-item:active {
+  transform: scale(.97);
+}
+
+/* ---------------------------------------------------------------
+   Screen entrance: each part of the screen rises in turn
+   --------------------------------------------------------------- */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+#screen.enter > * { animation: rise-in .38s cubic-bezier(.2,.7,.2,1) both; }
+#screen.enter > *:nth-child(2) { animation-delay: .05s; }
+#screen.enter > *:nth-child(3) { animation-delay: .10s; }
+#screen.enter > *:nth-child(4) { animation-delay: .15s; }
+#screen.enter > *:nth-child(5) { animation-delay: .20s; }
+#screen.enter > *:nth-child(6) { animation-delay: .25s; }
+#screen.enter > *:nth-child(n+7) { animation-delay: .30s; }
+
+/* ---------------------------------------------------------------
+   Welcome: a boot-up style opening for a new person
+   --------------------------------------------------------------- */
+.intro {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px; text-align: center;
+  background: #F7FAF9; color: #0F3D3A;
+  transition: opacity .35s ease;
+}
+.intro.leaving { opacity: 0; }
+.intro-ring { width: 120px; height: 120px; margin-bottom: 22px; }
+.intro-ring circle {
+  fill: none; stroke: #0F766E; stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 277; stroke-dashoffset: 277;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+  animation: ring-draw 1.1s cubic-bezier(.6,.1,.3,1) .1s forwards;
+}
+@keyframes ring-draw { to { stroke-dashoffset: 0; } }
+.intro-title { font-size: 34px; margin: 0 0 10px; letter-spacing: .5px; }
+.intro-title span {
+  display: inline-block; opacity: 0; transform: translateY(14px);
+  animation: letter-in .5s cubic-bezier(.2,.7,.2,1) forwards;
+  animation-delay: calc(.9s + var(--i) * .06s);
+}
+@keyframes letter-in { to { opacity: 1; transform: none; } }
+.intro-sub {
+  max-width: 320px; margin: 0 0 28px; color: #4B6B68;
+  opacity: 0; animation: fade-up .6s ease forwards 1.9s;
+}
+.intro-btn {
+  opacity: 0; animation: fade-up .6s ease forwards 2.3s;
+  min-width: 180px;
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------
+   Guided tour: a card that floats over the real screen
+   --------------------------------------------------------------- */
+.tour {
+  position: fixed; inset: auto 0 0 0;
+  padding: 16px; pointer-events: none;
+  display: flex; justify-content: center;
+}
+.tour-card {
+  pointer-events: auto; width: 100%; max-width: 460px;
+  background: #fff; color: #0F3D3A;
+  border-radius: 18px; padding: 18px 20px 16px;
+  box-shadow: 0 14px 40px rgba(15, 61, 58, .22);
+  animation: tour-up .42s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes tour-up {
+  from { opacity: 0; transform: translateY(24px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+.tour-dots { display: flex; gap: 6px; align-items: center; }
+.tour-dots span {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #D5E2E0; transition: width .3s ease, background-color .3s ease;
+}
+.tour-dots span.on { width: 22px; border-radius: 4px; background: #0F766E; }
+.tour-card h2 { font-size: 20px; }
+.tour-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
+
+/* ---------------------------------------------------------------
+   Home: greeting, today's meals, kitchen alerts, quick actions
+   --------------------------------------------------------------- */
+.home-hero {
+  background: linear-gradient(135deg, #E6F4F1 0%, #FFFFFF 100%);
+}
+.home-label { margin: 20px 0 8px; font-size: 15px; color: #0F766E; }
+.tile {
+  display: flex; flex-direction: column; gap: 4px;
+  width: 100%; margin-bottom: 10px;
+  text-align: start; cursor: pointer; font: inherit; color: inherit;
+}
+.tile:hover { box-shadow: 0 6px 18px rgba(15, 61, 58, .12); }
+.home-low { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.home-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.home-actions .btn { flex: 1 1 140px; }
+
+/* ---------------------------------------------------------------
+   Respect "reduce motion" on phones and computers: keep the end state, skip the movement.
+   --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
