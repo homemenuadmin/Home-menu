@@ -7,6 +7,10 @@
 const TEXT = {
   en: {
     tagline: 'Plan meals together with your household',
+    testAccount: 'Test account',
+    testAccountNote: 'Signs in as a brand-new user. Everything from the last test is cleared.',
+    testPassword: 'Test password',
+    testSignIn: 'Test sign in',
     appName: 'Home Menu',
     welcomeSub: 'Plan meals together, keep the kitchen stocked, and keep everyone in the loop.',
     getStarted: 'Get started',

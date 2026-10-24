@@ -21,6 +21,7 @@ let needsHousehold = false; // signed in, but not yet in any household
 let needsSetup = false;     // in a household, but has not finished the first-time questions
 let drawerOpen = false;     // the side menu (tabs and profile)
 let lastViewKey = '';       // the screen on show, so only a real change of screen animates
+let testPassword = null;    // kept only while the test account is signed in, so sign out can reset it
 // Which screen is showing: 'main:<tab>' or 'setup:<step>'. Returns the class that plays the entrance once per change.
 function screenClass(key) {
   if (cache.loading) return '';
@@ -167,7 +168,26 @@ function renderSignIn() {
     ${messages()}
     <div class="card">
       <button class="btn" onclick="signIn()">${t('signIn')}</button>
-    </div>`;
+    </div>
+    ${TEST_LOGIN ? `<div class="card">
+      <h3 style="margin-top:0">${esc(t('testAccount'))}</h3>
+      <p class="muted">${esc(t('testAccountNote'))}</p>
+      <label>${esc(t('testPassword'))}</label>
+      <input id="testpw" type="password" autocomplete="off">
+      <button class="btn secondary" onclick="testSignIn()">${esc(t('testSignIn'))}</button>
+    </div>` : ''}`;
+}
+
+// Test account: starts it fresh, then signs in. The reset checks the password on the server.
+async function testSignIn() {
+  const pw = document.getElementById('testpw').value;
+  if (!pw) return setProblem(new Error(t('testPassword')));
+  const { error: resetError } = await sb.rpc('reset_test_account', { p_email: TEST_EMAIL, p_password: pw });
+  if (resetError) return setProblem(resetError);
+  const { error } = await sb.auth.signInWithPassword({ email: TEST_EMAIL, password: pw });
+  if (error) return setProblem(error);
+  testPassword = pw;
+  problem = '';
 }
 
 async function signIn() {
@@ -179,6 +199,11 @@ async function signIn() {
 }
 
 async function signOut() {
+  // Leaving the test account clears what was added during the test.
+  if (testPassword && session && session.user.email === TEST_EMAIL) {
+    try { await sb.rpc('reset_test_account', { p_email: TEST_EMAIL, p_password: testPassword }); } catch (e) {}
+  }
+  testPassword = null;
   await sb.auth.signOut();
   session = null; hh = null; cache = {}; notice = ''; problem = '';
   needsSetup = false; setupData = null; setupStep = 0;
