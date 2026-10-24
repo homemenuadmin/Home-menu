@@ -20,7 +20,7 @@ async function screenHome() {
   const greeting = hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening');
   const niceDate = new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' });
 
-  let html = `
+  let html = installCard('home') + `
     <div class="card home-hero">
       <div class="muted">${esc(niceDate)}</div>
       <h2 style="margin:4px 0 0">${esc(greeting)}</h2>

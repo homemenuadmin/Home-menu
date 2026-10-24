@@ -16,6 +16,7 @@ async function screenProfile() {
       <p>${esc(roleNote())}</p>
       ${hh.owner ? `<p class="muted">${esc(t('ownerNote'))}</p>` : ''}
     </div>
+    ${installCard('settings')}
     ${people}
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
 }
