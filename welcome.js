@@ -16,8 +16,15 @@ function splitLetters(text) {
 function renderIntro() {
   return `
     <div class="intro">
-      <svg class="intro-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44"/></svg>
-      <h1 class="intro-title">${splitLetters(t('appName'))}</h1>
+      <span class="intro-orb o1"></span><span class="intro-orb o2"></span><span class="intro-orb o3"></span>
+      <div class="intro-logo" aria-hidden="true">
+        <svg viewBox="0 0 80 64">
+          <circle class="plate" pathLength="1" cx="40" cy="32" r="17"/>
+          <path class="fork" pathLength="1" d="M10 8v12a5 5 0 0 0 10 0V8M15 20v36"/>
+          <path class="knife" pathLength="1" d="M70 8c-4 4-5 10-5 15h5v29"/>
+        </svg>
+      </div>
+      <h1 class="intro-title" dir="ltr">${splitLetters(t('appName'))}</h1>
       <p class="intro-sub">${esc(t('welcomeSub'))}</p>
       <button class="btn intro-btn" onclick="startSetup()">${esc(t('getStarted'))}</button>
     </div>`;
