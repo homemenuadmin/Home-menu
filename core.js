@@ -50,7 +50,18 @@ function applyLang() {
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   try { localStorage.setItem('homemenu-lang', lang); } catch (e) {}
 }
-function setLang(l) { lang = l; applyLang(); render(); }
+// Switching language: the screen fades out, the new language is drawn, and it fades back in.
+async function setLang(l) {
+  if (lang === l) return;
+  const app = document.getElementById('app');
+  if (app) app.classList.add('switching');
+  await new Promise((r) => setTimeout(r, 180));
+  lang = l; applyLang(); render();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.getElementById('app');
+    if (el) el.classList.remove('switching');
+  }));
+}
 function langButton() {
   return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
 }
@@ -134,7 +145,8 @@ function render() {
 // The side menu: the tabs, and Profile (where sign out lives).
 const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
 
-function drawerKey() { return [hh.id, hh.name, can.people()].join('|'); }
+// The menu is rebuilt when its contents change, including the language, so its labels stay right.
+function drawerKey() { return [hh.id, hh.name, can.people(), lang].join('|'); }
 
 function drawerHtml() {
   const items = ['home', 'today', 'kitchen', 'recipes', 'rules'];
