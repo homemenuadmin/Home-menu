@@ -216,7 +216,7 @@ async function signOut() {
   await sb.auth.signOut();
   session = null; hh = null; cache = {}; notice = ''; problem = '';
   needsSetup = false; setupData = null; setupStep = 0;
-  showIntro = false; tourStep = null; tourList = [];
+  showIntro = true; tourStep = null; tourList = [];
   render();
 }
 

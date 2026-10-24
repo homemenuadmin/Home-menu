@@ -1,11 +1,8 @@
 // Welcome animation for new people, and the guided tour of the app that follows setup.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
-// Whether this browser has already seen the welcome. The welcome shows once, before sign-in.
-function welcomed() {
-  try { return localStorage.getItem('homemenu-welcomed') === '1'; } catch (e) { return false; }
-}
-let showIntro = !welcomed(); // the welcome animation, shown first to a new visitor
+// The welcome animation: shown first on every visit for someone who is signed out.
+let showIntro = true;
 let tourStep = null;     // which tour step is showing; null when the tour is off
 let tourList = [];       // the steps of the tour for this person
 
@@ -34,9 +31,8 @@ function renderIntro() {
     </div>`;
 }
 
-// Fades the welcome out, then shows the sign-in screen. The welcome does not come back in this browser.
+// Fades the welcome out, then shows the sign-in screen.
 function startSignIn() {
-  try { localStorage.setItem('homemenu-welcomed', '1'); } catch (e) {}
   const el = document.querySelector('.intro');
   const finish = () => { showIntro = false; render(); };
   if (!el) return finish();
