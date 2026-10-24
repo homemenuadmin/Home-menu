@@ -1,9 +1,10 @@
-// Profile: who is signed in, their role in the household, and sign out.
+// Settings: who is signed in, their role, the people in the household (owner only), and sign out.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 async function screenProfile() {
   const email = session?.user?.email || '';
   const owner = hh.owner ? ` <span class="tag gold">${esc(t('ownerTag'))}</span>` : '';
+  const people = can.people() ? await peopleSection() : '';
   return `
     <div class="card">
       <div class="muted">${esc(t('signedInAs'))}</div>
@@ -15,5 +16,6 @@ async function screenProfile() {
       <p>${esc(roleNote())}</p>
       ${hh.owner ? `<p class="muted">${esc(t('ownerNote'))}</p>` : ''}
     </div>
+    ${people}
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
 }

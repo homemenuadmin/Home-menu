@@ -44,8 +44,7 @@ function buildTour() {
     { tab: 'recipes', title: 'tourRecipesT', text: 'tourRecipesB' },
     { tab: 'rules', title: 'tourRulesT', text: 'tourRulesB' },
   ];
-  if (hh.owner) steps.push({ tab: 'members', title: 'tourPeopleT', text: 'tourPeopleB' });
-  steps.push({ tab: 'profile', title: 'tourProfileT', text: 'tourProfileB' });
+  steps.push({ tab: 'profile', title: 'tourSettingsT', text: hh.owner ? 'tourSettingsOwnerB' : 'tourSettingsB' });
   steps.push({ tab: 'home', title: 'tourDoneT', text: 'tourDoneB', last: true });
   return steps;
 }

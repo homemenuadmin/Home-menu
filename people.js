@@ -1,11 +1,10 @@
-// People tab (household owner only): members, their roles, and invite codes.
+// People (household owner only): members, their roles, and invite codes. Shown inside Settings.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 // ---------------------------------------------------------------
-// PEOPLE: owner only
+// PEOPLE: part of Settings, for the household owner only
 // ---------------------------------------------------------------
-async function screenMembers() {
-  if (!can.people()) return '<p class="muted">' + esc(t('ownerOnly')) + '</p>';
+async function peopleSection() {
   const [mem, codes] = await Promise.all([
     sb.from('household_members').select('user_id, role, is_owner, profiles(full_name, email)').eq('household_id', hh.id),
     sb.from('invite_codes').select('code, role, expires_at')
@@ -17,9 +16,8 @@ async function screenMembers() {
   let html = '<h2 style="margin-top:0">' + esc(t('members')) + '</h2><div class="card"><ul class="clean">';
   for (const m of mem.data) {
     const who = m.profiles?.full_name || m.profiles?.email || '';
-    const isMe = m.user_id === session.user.id;
     const owner = m.is_owner ? ` <span class="tag gold">${esc(t('ownerTag'))}</span>` : '';
-    const select = `<select onchange="changeRole('${m.user_id}', this.value)" ${isMe ? 'disabled' : ''}>
+    const select = `<select onchange="changeRole('${m.user_id}', this.value)">
       ${['member', 'helper'].map((r) => `<option value="${r}" ${m.role === r ? 'selected' : ''}>${esc(t('role_' + r))}</option>`).join('')}</select>`;
     html += `<li><div><strong>${esc(who)}</strong>${owner}</div>${select}</li>`;
   }

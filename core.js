@@ -138,7 +138,6 @@ function drawerKey() { return [hh.id, hh.name, can.people()].join('|'); }
 
 function drawerHtml() {
   const items = ['home', 'today', 'kitchen', 'recipes', 'rules'];
-  if (can.people()) items.push('members');
   items.push('profile');
   return `
     <div class="scrim" onclick="closeDrawer()"></div>
@@ -303,7 +302,6 @@ async function loadTab() {
     if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
     if (tab === 'recipes') cache.screenHtml = await screenRecipes();
     if (tab === 'rules') cache.screenHtml = await screenRules();
-    if (tab === 'members') cache.screenHtml = await screenMembers();
     if (tab === 'profile') cache.screenHtml = await screenProfile();
   } catch (e) {
     cache.screenHtml = '';
