@@ -20,6 +20,14 @@ let cache = {};           // data loaded for the current tab
 let needsHousehold = false; // signed in, but not yet in any household
 let needsSetup = false;     // in a household, but has not finished the first-time questions
 let drawerOpen = false;     // the side menu (tabs and profile)
+let lastViewKey = '';       // the screen on show, so only a real change of screen animates
+// Which screen is showing: 'main:<tab>' or 'setup:<step>'. Returns the class that plays the entrance once per change.
+function screenClass(key) {
+  if (cache.loading) return '';
+  const enter = key !== lastViewKey;
+  lastViewKey = key;
+  return enter ? ' enter' : '';
+}
 
 const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -83,11 +91,15 @@ function render() {
     nav.hidden = true;
     app.innerHTML = `<div class="top"><h1>Home Menu</h1><div>${langButton()}</div></div>
       ${messages()}
-      <div id="screen">${renderSetup()}</div>`;
+      <div id="screen" class="${screenClass('setup:' + setupStep)}">${renderSetup()}</div>`;
     return;
   }
-  nav.hidden = !drawerOpen;
-  nav.innerHTML = drawerHtml();
+  // The side menu is built once per household and role, so it can slide in and out without being redrawn.
+  nav.hidden = false;
+  const key = drawerKey();
+  if (nav.dataset.key !== key) { nav.dataset.key = key; nav.innerHTML = drawerHtml(); }
+  nav.classList.toggle('open', drawerOpen);
+  nav.querySelectorAll('.drawer-item').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   app.innerHTML = `
     <div class="top">
       <button class="icon-btn" onclick="openDrawer()" aria-label="${esc(t('menu'))}" aria-expanded="${drawerOpen}">${MENU_ICON}</button>
@@ -98,11 +110,13 @@ function render() {
       <div>${langButton()}</div>
     </div>
     ${messages()}
-    <div id="screen">${cache.screenHtml || ''}</div>`;
+    <div id="screen" class="${screenClass('main:' + tab)}">${cache.screenHtml || ''}</div>`;
 }
 
 // The side menu: the tabs, and Profile (where sign out lives).
 const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+
+function drawerKey() { return [hh.id, hh.name, can.people()].join('|'); }
 
 function drawerHtml() {
   const items = ['today', 'kitchen', 'recipes', 'rules'];
@@ -116,7 +130,7 @@ function drawerHtml() {
         <button class="btn secondary small" onclick="closeDrawer()">${esc(t('close'))}</button>
       </div>
       <ul class="clean">
-        ${items.map((k) => `<li><button class="drawer-item ${k === tab ? 'on' : ''}" onclick="go('${k}')">${esc(t(k))}</button></li>`).join('')}
+        ${items.map((k) => `<li><button class="drawer-item" data-tab="${k}" onclick="go('${k}')">${esc(t(k))}</button></li>`).join('')}
       </ul>
     </aside>`;
 }
@@ -233,6 +247,7 @@ async function go(k) {
 
 async function loadTab() {
   cache.screenHtml = '<p class="muted">' + esc(t('loading')) + '</p>';
+  cache.loading = true;
   render();
   try {
     if (tab === 'today') cache.screenHtml = await screenToday();
@@ -245,6 +260,7 @@ async function loadTab() {
     cache.screenHtml = '';
     problem = t('errorPrefix') + (e.message || e);
   }
+  cache.loading = false;
   render();
 }
 
