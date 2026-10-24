@@ -98,6 +98,8 @@ function render() {
   nav.hidden = false;
   const key = drawerKey();
   if (nav.dataset.key !== key) { nav.dataset.key = key; nav.innerHTML = drawerHtml(); }
+  // Read the closed position first, so the browser has a starting point and the slide plays.
+  if (drawerOpen) void nav.offsetWidth;
   nav.classList.toggle('open', drawerOpen);
   nav.querySelectorAll('.drawer-item').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   app.innerHTML = `
