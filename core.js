@@ -23,6 +23,7 @@ let drawerOpen = false;     // the side menu (tabs and profile)
 let lastViewKey = '';       // the screen on show, so only a real change of screen animates
 let testPassword = null;    // kept only while the test account is signed in, so sign out can reset it
 let screenBusy = false;     // true while a screen is refreshing with its old content still showing
+let roleMenuOpen = false;   // the top-bar role menu
 // Which screen is showing: 'main:<tab>' or 'setup:<step>'. Returns the class that plays the entrance once per change.
 function screenClass(key) {
   if (cache.loading) return '';
@@ -65,14 +66,24 @@ async function setLang(l) {
 function langButton() {
   return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
 }
-// Shows the signed-in person's own role as a drop-down: Cook or Family member.
+// The signed-in person's own role, shown as a menu in the app's style: Cook or Family member.
 function roleButton() {
-  const options = [['helper', 'role_helper'], ['member', 'role_member']]
-    .map(([v, k]) => `<option value="${v}" ${hh.role === v ? 'selected' : ''}>${esc(t(k))}</option>`).join('');
-  return `<select class="role-select" onchange="switchMyRole(this.value)" aria-label="${esc(t('switchRole'))}" title="${esc(t('switchRole'))}">${options}</select>`;
+  const options = [['helper', 'role_helper'], ['member', 'role_member']];
+  const list = roleMenuOpen
+    ? `<div class="role-scrim" onclick="toggleRoleMenu()"></div>
+       <div class="role-list" role="listbox" aria-label="${esc(t('switchRole'))}">
+         ${options.map(([v, k]) => `<button class="role-opt ${hh.role === v ? 'on' : ''}" role="option" aria-selected="${hh.role === v}" onclick="switchMyRole('${v}')">${esc(t(k))}</button>`).join('')}
+       </div>`
+    : '';
+  return `<div class="role-menu">
+    <button class="role-toggle" onclick="toggleRoleMenu()" aria-haspopup="listbox" aria-expanded="${roleMenuOpen}" title="${esc(t('switchRole'))}">${esc(t('role_' + hh.role))} <span class="caret" aria-hidden="true">▾</span></button>
+    ${list}
+  </div>`;
 }
+function toggleRoleMenu() { roleMenuOpen = !roleMenuOpen; render(); }
 async function switchMyRole(next) {
-  if (next === hh.role) return;
+  roleMenuOpen = false;
+  if (next === hh.role) return render();
   const { error } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: next });
   if (error) return setProblem(error);
   hh.role = next;
