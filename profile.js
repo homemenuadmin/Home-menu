@@ -15,7 +15,15 @@ async function screenProfile() {
   if (profileRes.error) throw profileRes.error;
   const prof = profileRes.data || {};
   const nickname = prof.nickname || '';
-  const avatar = prof.avatar_url || '';
+  // The photo is private: the database holds only its path, and a short-lived link is made for showing it.
+  // Photos from Google sign-in are full web links and can be shown as they are.
+  let avatar = '';
+  if (prof.avatar_url && /^https?:\/\//.test(prof.avatar_url)) {
+    avatar = prof.avatar_url;
+  } else if (prof.avatar_url) {
+    const { data: signed } = await sb.storage.from('avatars').createSignedUrl(prof.avatar_url, 3600);
+    avatar = signed ? signed.signedUrl : '';
+  }
 
   let profileHtml;
   if (profileForm) {
@@ -86,8 +94,7 @@ async function saveProfile() {
       const path = session.user.id + '/avatar.jpg';
       const { error: uploadError } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) return setProblem(uploadError);
-      // A changing number on the end makes the browser show the new picture, not an old copy.
-      update.avatar_url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
+      update.avatar_url = path;
     } catch (e) {
       return setProblem(e);
     }
