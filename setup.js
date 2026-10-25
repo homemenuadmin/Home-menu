@@ -139,7 +139,16 @@ function renderSetup() {
       ${setupStepHtml(steps[setupStep])}
     </div>
     <button class="btn" onclick="setupNext()">${esc(t(last ? 'setupFinish' : 'setupNext'))}</button>
-    ${setupStep > 0 ? `<button class="btn secondary" onclick="setupBack()">${esc(t('setupBack'))}</button>` : ''}`;
+    ${setupStep > 0 ? `<button class="btn secondary" onclick="setupBack()">${esc(t('setupBack'))}</button>` : ''}
+    ${session && session.user.email === TEST_EMAIL ? `<button class="btn secondary" onclick="skipSetup()">${esc(t('setupSkip'))}</button>` : ''}`;
+}
+
+// Test account only: finish the setup with the default answers.
+async function skipSetup() {
+  if (!setupData) return;
+  collectSetupInputs();
+  if (!setupData.name.trim()) setupData.name = 'Test';
+  await saveSetup();
 }
 
 function setupBack() {
