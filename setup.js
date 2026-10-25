@@ -12,6 +12,7 @@ let setupData = null;
 
 function blankSetup() {
   return {
+    name: '',
     cook_answer: null,
     meals_per_day: ['breakfast', 'lunch', 'dinner'],
     meal_times: {},
@@ -28,7 +29,7 @@ function blankSetup() {
 
 // Steps depend on earlier answers: people who do not cook are not asked which days they cook.
 function setupSteps() {
-  const steps = ['cook', 'meals', 'mealTimes'];
+  const steps = ['name', 'cook', 'meals', 'mealTimes'];
   if (setupData.cook_answer !== 'not_cook') steps.push('prepHome');
   return steps.concat(['prepSchool', 'diet', 'tastes', 'spice', 'salt']);
 }
@@ -47,12 +48,14 @@ function collectSetupInputs() {
 }
 
 function pickSetup(field, value) {
+  if (!setupData) return;
   collectSetupInputs();
   setupData[field] = value;
   render();
 }
 
 function toggleSetup(field, value) {
+  if (!setupData) return;
   collectSetupInputs();
   const list = setupData[field];
   setupData[field] = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -74,6 +77,11 @@ function dayOptions() {
 }
 
 function setupStepHtml(step) {
+  if (step === 'name') {
+    return `<h2 style="margin-top:0">${esc(t('nameQ'))}</h2>
+      <input data-setup data-field="name" value="${esc(setupData.name)}" maxlength="30" autocomplete="nickname">
+      <p class="muted">${esc(t('nameNote'))}</p>`;
+  }
   if (step === 'cook') {
     return `<h2 style="margin-top:0">${esc(t('cookQ'))}</h2>
       ${setupOptions('cook_answer', [['cook', t('cookYes')], ['not_cook', t('cookNo')], ['hybrid', t('cookSometimes')]], setupData.cook_answer)}
@@ -142,9 +150,12 @@ function setupBack() {
 }
 
 async function setupNext() {
+  // A second tap after setup has finished has nothing to do.
+  if (!setupData) return;
   collectSetupInputs();
   const steps = setupSteps();
   const step = steps[setupStep];
+  if (step === 'name' && !setupData.name.trim()) { problem = t('nameRequired'); return render(); }
   if (step === 'cook' && !setupData.cook_answer) { problem = t('pickOne'); return render(); }
   if (step === 'meals' && !setupData.meals_per_day.length) { problem = t('pickOne'); return render(); }
   if (step === 'mealTimes') {
@@ -158,6 +169,9 @@ async function setupNext() {
 
 async function saveSetup() {
   const d = setupData;
+  // The name they type is their nickname, shown in Settings and to the household.
+  const { error: nameError } = await sb.from('profiles').update({ nickname: d.name.trim() }).eq('id', session.user.id);
+  if (nameError) return setProblem(nameError);
   const { error } = await sb.from('member_settings').upsert({
     user_id: session.user.id,
     household_id: hh.id,
