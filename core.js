@@ -65,12 +65,14 @@ async function setLang(l) {
 function langButton() {
   return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
 }
-// Shows the signed-in person's own role; tapping it switches between Cook and Family member.
+// Shows the signed-in person's own role as a drop-down: Cook or Family member.
 function roleButton() {
-  return `<button class="btn secondary small role-btn" onclick="switchMyRole()" title="${esc(t('switchRole'))}">${esc(t('role_' + hh.role))} ⇄</button>`;
+  const options = [['helper', 'role_helper'], ['member', 'role_member']]
+    .map(([v, k]) => `<option value="${v}" ${hh.role === v ? 'selected' : ''}>${esc(t(k))}</option>`).join('');
+  return `<select class="role-select" onchange="switchMyRole(this.value)" aria-label="${esc(t('switchRole'))}" title="${esc(t('switchRole'))}">${options}</select>`;
 }
-async function switchMyRole() {
-  const next = hh.role === 'helper' ? 'member' : 'helper';
+async function switchMyRole(next) {
+  if (next === hh.role) return;
   const { error } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: next });
   if (error) return setProblem(error);
   hh.role = next;

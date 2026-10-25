@@ -229,7 +229,7 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 
 /* Top bar: role switch and language button side by side. */
 .top-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
-.role-btn { white-space:nowrap; }
+.role-select { width:auto; min-height:44px; margin:0; padding:6px 30px 6px 12px; font-size:17px; font-weight:700; border-radius:14px; border:2px solid #9CA3AF; background:#fff; color:var(--ink); }
 
 /* Meals tab: the two-week calendar strip. */
 .daystrip { display:flex; gap:8px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none; }
