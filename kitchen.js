@@ -1,4 +1,4 @@
-// Kitchen tab: stock by location.
+// Kitchen tab: fridge, freezer and pantry, each with its own items and add button.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 // ---------------------------------------------------------------
@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------
 const LEVELS = ['Full', 'Half', 'Low', 'Finished'];
 const LOCATIONS = ['fridge', 'freezer', 'pantry'];
+// itemForm (from core.js) is false, or the location a new item is being added to.
 
 async function screenKitchen() {
   const { data, error } = await sb
@@ -20,10 +21,12 @@ async function screenKitchen() {
   let html = `<p>${esc(editable ? roleNote() : t('readOnlyKitchen'))}</p>`;
   if (!cache.items.length) html += `<div class="card"><p>${esc(t('emptyKitchen'))}</p></div>`;
 
+  // Every section always shows, so an empty place can be filled straight away.
   for (const loc of LOCATIONS) {
     const list = cache.items.filter((i) => i.location === loc);
-    if (!list.length) continue;
-    html += `<h2>${esc(t(loc))}</h2><div class="card"><ul class="clean">`;
+    html += `<h2>${esc(t(loc))} <span class="tag">${list.length}</span></h2><div class="card">`;
+    if (!list.length) html += `<p class="muted">${esc(t('emptySection'))}</p>`;
+    else html += '<ul class="clean">';
     for (const it of list) {
       const levels = editable
         ? LEVELS.map((l) => `<button class="chip ${it.level === l ? 'on' : ''}" onclick="setLevel('${it.id}','${l}')">${esc(t(l))}</button>`).join('')
@@ -31,29 +34,31 @@ async function screenKitchen() {
       const del = editable ? `<button class="btn small danger" onclick="removeItem('${it.id}')">${esc(t('deleteItem'))}</button>` : '';
       html += `<li><div class="row"><strong>${esc(nameOf(it.name_en, it.name_ar))}</strong>${del}</div><div>${levels}</div></li>`;
     }
-    html += '</ul></div>';
-  }
+    if (list.length) html += '</ul>';
 
-  if (editable) {
-    if (itemForm) {
-      html += `<div class="card"><h2 style="margin-top:0">${esc(t('addItem'))}</h2>
-        <label>${esc(t('itemName'))}</label><input id="iname">
-        <label>${esc(t('itemNameAr'))}</label><input id="iname_ar">
-        <label>${esc(t('itemKey'))}</label><input id="ikey">
-        <label>${esc(t('location'))}</label>
-        <select id="iloc">${LOCATIONS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
-        <label>${esc(t('level'))}</label>
-        <select id="ilevel">${LEVELS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
-        <button class="btn" onclick="saveItem()">${esc(t('save'))}</button>
-        <button class="btn secondary" onclick="toggleItemForm(false)">${esc(t('cancel'))}</button></div>`;
-    } else {
-      html += `<button class="btn" onclick="toggleItemForm(true)">${esc(t('addItem'))}</button>`;
+    if (editable) {
+      if (itemForm === loc) {
+        html += `<div class="item-form">
+          <h3 style="margin-top:0">${esc(t('addItem'))} · ${esc(t(loc))}</h3>
+          <label>${esc(t('itemName'))}</label><input id="iname">
+          <label>${esc(t('itemNameAr'))}</label><input id="iname_ar">
+          <label>${esc(t('itemKey'))}</label><input id="ikey">
+          <label>${esc(t('level'))}</label>
+          <select id="ilevel">${LEVELS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
+          <button class="btn" onclick="saveItem()">${esc(t('save'))}</button>
+          <button class="btn secondary" onclick="toggleItemForm(false)">${esc(t('cancel'))}</button>
+        </div>`;
+      } else {
+        html += `<button class="btn small" onclick="toggleItemForm('${loc}')">${esc(t('addItem'))}</button>`;
+      }
     }
+    html += '</div>';
   }
   return html;
 }
 
-async function toggleItemForm(on) { itemForm = on; await loadTab(); }
+// Opens the add form for one location (or closes it when false is passed).
+async function toggleItemForm(loc) { itemForm = loc || false; await loadTab(); }
 
 async function saveItem() {
   const name = document.getElementById('iname').value.trim();
@@ -64,7 +69,7 @@ async function saveItem() {
     name_en: name,
     name_ar: document.getElementById('iname_ar').value.trim() || null,
     ingredient_key: key,
-    location: document.getElementById('iloc').value,
+    location: itemForm,
     level: document.getElementById('ilevel').value,
     updated_by: session.user.id,
   });

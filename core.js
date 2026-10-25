@@ -65,6 +65,19 @@ async function setLang(l) {
 function langButton() {
   return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
 }
+// Shows the signed-in person's own role; tapping it switches between Cook and Family member.
+function roleButton() {
+  return `<button class="btn secondary small role-btn" onclick="switchMyRole()" title="${esc(t('switchRole'))}">${esc(t('role_' + hh.role))} ⇄</button>`;
+}
+async function switchMyRole() {
+  const next = hh.role === 'helper' ? 'member' : 'helper';
+  const { error } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: next });
+  if (error) return setProblem(error);
+  hh.role = next;
+  problem = '';
+  notice = t('roleChanged');
+  await loadTab();
+}
 function messages() {
   let out = '';
   if (problem) out += `<div class="error">${esc(problem)}</div>`;
@@ -131,7 +144,7 @@ function render() {
         <div class="muted">${esc(hh.name)}</div>
         <h1>${esc(t(tab))}</h1>
       </div>
-      <div>${langButton()}</div>
+      <div class="top-actions">${roleButton()}${langButton()}</div>
     </div>
     ${messages()}
     <div id="screen" class="${screenClass('main:' + tab)}${screenBusy ? ' busy' : ''}">${cache.screenHtml || ''}</div>
@@ -145,7 +158,7 @@ const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 function drawerKey() { return [hh.id, hh.name, can.people(), lang].join('|'); }
 
 function drawerHtml() {
-  const items = ['home', 'today', 'kitchen', 'recipes', 'rules'];
+  const items = ['home', 'today', 'planner', 'kitchen', 'recipes', 'rules'];
   items.push('profile');
   return `
     <div class="scrim" onclick="closeDrawer()"></div>
@@ -293,7 +306,7 @@ async function go(k) {
   tab = k;
   drawerOpen = false;
   notice = ''; problem = '';
-  mealForm = false; itemForm = false; ruleForm = false; openRecipeId = null;
+  mealForm = false; mealEditId = null; itemForm = false; ruleForm = false; openRecipeId = null;
   await loadTab();
 }
 
@@ -306,6 +319,7 @@ async function loadTab() {
   try {
     if (tab === 'home') cache.screenHtml = await screenHome();
     if (tab === 'today') cache.screenHtml = await screenToday();
+    if (tab === 'planner') cache.screenHtml = await screenPlanner();
     if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
     if (tab === 'recipes') cache.screenHtml = await screenRecipes();
     if (tab === 'rules') cache.screenHtml = await screenRules();

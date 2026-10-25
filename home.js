@@ -55,10 +55,12 @@ async function screenHome() {
   return html;
 }
 
-// Opens Today with the add-a-meal form already showing.
+// Opens the Meals tab on today, with the add-a-meal form already showing for dinner.
 async function homeAddMeal() {
   tab = 'today';
   drawerOpen = false;
-  mealForm = true;
+  mealsDay = todayIso();
+  mealEditId = null;
+  mealForm = 'dinner';
   await loadTab();
 }

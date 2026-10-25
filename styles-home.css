@@ -226,3 +226,35 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
     transition-duration: .01ms !important;
   }
 }
+
+/* Top bar: role switch and language button side by side. */
+.top-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+.role-btn { white-space:nowrap; }
+
+/* Meals tab: the two-week calendar strip. */
+.daystrip { display:flex; gap:8px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none; }
+.daystrip::-webkit-scrollbar { display:none; }
+.daychip { flex:0 0 auto; width:60px; min-height:76px; display:flex; flex-direction:column; align-items:center;
+           justify-content:center; gap:2px; padding:6px; border-radius:18px; border:2px solid #9CA3AF; background:#fff;
+           color:var(--ink); font:inherit; cursor:pointer; }
+.daychip.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+.dc-wd { font-size:15px; font-weight:600; }
+.dc-num { font-size:24px; font-weight:800; line-height:1; }
+.dc-dot { width:7px; height:7px; border-radius:50%; margin-top:2px; background:transparent; }
+.dc-dot.on { background:var(--coral); }
+.daychip.on .dc-dot.on { background:#fff; }
+.cal-title { margin:8px 0 4px; }
+.meal-form, .item-form { border:2px solid var(--line); border-radius:16px; padding:12px; margin:12px 0; background:#fff; }
+
+/* Meal planner tab: the week grid. */
+.week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.planner { display:grid; gap:10px; margin-top:8px; }
+.plan-day { background:#fff; border:1px solid var(--line); border-radius:16px; padding:10px; }
+.plan-day.today { border:2px solid var(--teal); }
+.plan-day.past { opacity:.5; }
+.plan-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px; }
+.plan-cell { display:flex; flex-direction:column; align-items:flex-start; width:100%; min-height:52px; padding:6px 10px; margin:4px 0;
+             border:2px solid var(--line); border-radius:12px; background:var(--bg); color:var(--ink); font:inherit; font-size:18px;
+             text-align:start; cursor:pointer; }
+.plan-cell small { font-size:14px; color:var(--muted); font-weight:700; }
+.plan-cell.off { cursor:default; opacity:.7; }
