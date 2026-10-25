@@ -258,3 +258,10 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
              text-align:start; cursor:pointer; }
 .plan-cell small { font-size:14px; color:var(--muted); font-weight:700; }
 .plan-cell.off { cursor:default; opacity:.7; }
+
+/* Settings: profile picture and nickname. */
+.profile-view { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.profile-text { flex:1 1 160px; min-width:0; overflow-wrap:anywhere; }
+.avatar { width:72px; height:72px; border-radius:50%; object-fit:cover; flex:0 0 auto; border:2px solid var(--line); }
+.avatar-initial { display:inline-flex; align-items:center; justify-content:center; background:var(--teal-soft);
+                  color:var(--teal); font-weight:800; font-size:30px; }

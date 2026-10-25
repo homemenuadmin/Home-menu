@@ -50,7 +50,6 @@ function buildTour() {
     { tab: 'today', title: 'tourTodayT', text: 'tourTodayB' },
     { tab: 'kitchen', title: 'tourKitchenT', text: 'tourKitchenB' },
     { tab: 'recipes', title: 'tourRecipesT', text: 'tourRecipesB' },
-    { tab: 'rules', title: 'tourRulesT', text: 'tourRulesB' },
   ];
   steps.push({ tab: 'profile', title: 'tourSettingsT', text: hh.owner ? 'tourSettingsOwnerB' : 'tourSettingsB' });
   steps.push({ tab: 'home', title: 'tourDoneT', text: 'tourDoneB', last: true });

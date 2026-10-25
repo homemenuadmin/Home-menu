@@ -158,7 +158,7 @@ const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 function drawerKey() { return [hh.id, hh.name, can.people(), lang].join('|'); }
 
 function drawerHtml() {
-  const items = ['home', 'today', 'planner', 'kitchen', 'recipes', 'rules'];
+  const items = ['home', 'today', 'planner', 'kitchen', 'recipes'];
   items.push('profile');
   return `
     <div class="scrim" onclick="closeDrawer()"></div>
@@ -322,7 +322,6 @@ async function loadTab() {
     if (tab === 'planner') cache.screenHtml = await screenPlanner();
     if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
     if (tab === 'recipes') cache.screenHtml = await screenRecipes();
-    if (tab === 'rules') cache.screenHtml = await screenRules();
     if (tab === 'profile') cache.screenHtml = await screenProfile();
   } catch (e) {
     cache.screenHtml = '';
