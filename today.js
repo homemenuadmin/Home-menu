@@ -238,6 +238,18 @@ function cancelMeal() {
   const wrap = document.querySelector('.meal-wrap');
   if (wrap && wrap.classList.contains('closing')) return;
   if (!wrap) { mealForm = false; mealEditId = null; loadTab(); return; }
+  // While the form is open, the slot shows no "Add a meal" button or empty note. Put those back under the
+  // form now, so they rise into place as the form folds, rather than appearing after the card has gone blank.
+  const card = wrap.closest('.card');
+  const slot = typeof mealForm === 'string' ? mealForm : null;
+  if (card && slot && !mealEditId) {
+    const hasItems = card.querySelectorAll('ul.clean > li').length > 0;
+    const ph = document.createElement('div');
+    ph.className = 'meal-placeholder';
+    ph.innerHTML = (hasItems ? '' : `<p class="muted">${esc(t('noMealsSlot'))}</p>`)
+      + `<button class="btn small" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
+    wrap.after(ph);
+  }
   wrap.classList.add('closing');
   setTimeout(() => { mealForm = false; mealEditId = null; loadTab(); }, 380);
 }
