@@ -30,6 +30,8 @@ async function screenPlanner() {
     .lte('meal_date', end);
   if (error) throw error;
   const meals = data || [];
+  cache.plannerMeals = meals;
+  await loadPlannerDetails(meals, cook);
 
   let html = `<div class="week-nav">
       <button class="btn secondary small" onclick="moveWeek(-1)">${esc(t('prevWeek'))}</button>
@@ -45,7 +47,7 @@ async function screenPlanner() {
     const isLater = iso > last;
     const open = !isPast && !isLater;
     const dayMeals = meals.filter((m) => m.meal_date === iso);
-    html += `<div class="plan-day ${iso === today ? 'today' : ''} ${isPast ? 'past' : ''} ${plannerDay === iso ? 'picked' : ''}">
+    html += `<div class="plan-day ${iso === today ? 'today' : ''} ${isPast ? 'past' : ''} ${plannerDay === iso ? 'picked' : ''}" data-day="${iso}">
       <div class="plan-head">
         <span>${esc(niceDay(iso, { weekday: 'long' }))}</span>
         <strong>${esc(niceDay(iso, { day: 'numeric', month: 'short' }))}</strong>
@@ -65,12 +67,31 @@ async function screenPlanner() {
   }
   html += '</div>';
 
-  if (cook && plannerDay) html += `<div class="fold${foldEnter('day-' + plannerDay)}" data-fold="day-${plannerDay}">${await plannerDayHtml(plannerDay, meals)}</div>`;
+  if (cook && plannerDay) html += dayFoldHtml(plannerDay);
   return html;
 }
 
+// Cooks: the recipes in this week's meals, with their ingredients and what is in the kitchen, kept in memory
+// so a recipe opens at once. Fetched on each planner load, so it stays current.
+async function loadPlannerDetails(meals, cook) {
+  const ids = [...new Set(meals.map((m) => m.recipe_id).filter(Boolean))];
+  cache.plannerDetail = {};
+  if (!cook || !ids.length) return;
+  const [rec, ings, pantry] = await Promise.all([
+    sb.from('recipes').select('id, title_en, title_ar, minutes, meal_slot, steps_en, steps_ar').in('id', ids),
+    sb.from('recipe_ingredients').select('recipe_id, ingredient_key, name_en, name_ar, quantity, optional').in('recipe_id', ids),
+    sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
+  ]);
+  for (const r of [rec, ings, pantry]) if (r.error) throw r.error;
+  const inStock = new Set((pantry.data || []).filter((p) => p.level !== 'Finished').map((p) => p.ingredient_key));
+  const detail = {};
+  for (const r of rec.data || []) detail[r.id] = { rec: r, ings: [], inStock };
+  for (const i of ings.data || []) if (detail[i.recipe_id]) detail[i.recipe_id].ings.push(i);
+  cache.plannerDetail = detail;
+}
+
 // Cooks: the meals on one day, with each recipe and a Cooked button.
-async function plannerDayHtml(iso, meals) {
+function plannerDayCardHtml(iso, meals) {
   const dayMeals = meals.filter((m) => m.meal_date === iso);
   let html = `<div class="card planner-day-card">
     <div class="row"><h2 style="margin:0">${esc(niceDay(iso, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
@@ -94,29 +115,31 @@ async function plannerDayHtml(iso, meals) {
       </div>`;
     }
   }
-  html += '</div>';
+  return html + '</div>';
+}
 
-  if (plannerRecipeId) html += `<div class="fold${foldEnter('precipe-' + plannerRecipeId)}" data-fold="precipe-${plannerRecipeId}">${await plannerRecipeHtml(plannerRecipeId)}</div>`;
-  return html;
+// The day's card, folded in below the week.
+function dayFoldHtml(iso) {
+  return `<div class="fold${foldEnter('day-' + iso)}" data-fold="day-${iso}">${plannerDayCardHtml(iso, cache.plannerMeals || [])}${plannerRecipeFoldHtml()}</div>`;
+}
+
+// The open recipe, folded in under the day's card. Empty when no recipe is open.
+function plannerRecipeFoldHtml() {
+  if (!plannerRecipeId) return '';
+  return `<div class="fold${foldEnter('precipe-' + plannerRecipeId)}" data-fold="precipe-${plannerRecipeId}">${plannerRecipeHtml(plannerRecipeId)}</div>`;
 }
 
 // The recipe read-only, for cooks: ingredients, with what is in the kitchen, and the steps.
-async function plannerRecipeHtml(id) {
-  const [rec, ings, pantry] = await Promise.all([
-    sb.from('recipes').select('title_en, title_ar, minutes, meal_slot, steps_en, steps_ar').eq('id', id).maybeSingle(),
-    sb.from('recipe_ingredients').select('ingredient_key, name_en, name_ar, quantity, optional').eq('recipe_id', id),
-    sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
-  ]);
-  for (const r of [rec, ings, pantry]) if (r.error) throw r.error;
-  if (!rec.data) return '';
-  const r = rec.data;
-  const inStock = new Set(pantry.data.filter((p) => p.level !== 'Finished').map((p) => p.ingredient_key));
+function plannerRecipeHtml(id) {
+  const d = (cache.plannerDetail || {})[id];
+  if (!d) return '';
+  const r = d.rec;
   let html = `<div class="card">
     <h2 style="margin-top:0">${esc(nameOf(r.title_en, r.title_ar))}</h2>
     <p class="muted">${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</p>
     <h3>${esc(t('ingredients'))}</h3><ul class="clean">`;
-  for (const i of ings.data || []) {
-    const have = inStock.has(i.ingredient_key);
+  for (const i of d.ings) {
+    const have = d.inStock.has(i.ingredient_key);
     const mark = i.optional ? '' : (have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
     html += `<li><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}${i.optional ? ' · (' + esc(t('optional')) + ')' : ''}</span>${mark}</div></li>`;
   }
@@ -127,14 +150,47 @@ async function plannerRecipeHtml(id) {
 
 function moveWeek(d) { plannerWeek += d; loadTab(); }
 
-// Cooks: open a day below the week, or close it. Opening redraws quietly and the day grows open; closing folds it away first.
-function openPlannerDay(iso) { plannerDay = iso; plannerRecipeId = null; loadTab({ quiet: true }); }
-function closePlannerDay() {
-  foldClose(plannerDay ? 'day-' + plannerDay : '', () => { plannerDay = null; plannerRecipeId = null; loadTab({ quiet: true }); });
+// Highlights the open day in the week, and nothing else.
+function syncPlannerPicks() {
+  document.querySelectorAll('.plan-day').forEach((d) => d.classList.toggle('picked', d.dataset.day === plannerDay));
 }
-function openPlannerRecipe(id) { plannerRecipeId = id; loadTab({ quiet: true }); }
+
+// Cooks: open a day below the week, in place, at once. The day grows open from the week.
+function openPlannerDay(iso) {
+  if (!cache.plannerMeals || !document.querySelector('.planner')) { plannerDay = iso; plannerRecipeId = null; return loadTab({ quiet: true }); }
+  plannerDay = iso; plannerRecipeId = null;
+  document.querySelectorAll('[data-fold^="day-"]').forEach((w) => w.remove());
+  document.querySelector('.planner').insertAdjacentHTML('afterend', dayFoldHtml(iso));
+  syncPlannerPicks();
+  syncScreenHtml();
+}
+// Folds the open day away, then removes it.
+function closePlannerDay() {
+  const w = plannerDay ? document.querySelector(`[data-fold="day-${plannerDay}"]`) : null;
+  if (!w) { plannerDay = null; plannerRecipeId = null; syncPlannerPicks(); return; }
+  if (w.classList.contains('closing')) return;
+  foldClose('day-' + plannerDay, () => {
+    w.remove();
+    plannerDay = null; plannerRecipeId = null;
+    syncPlannerPicks(); syncScreenHtml();
+  });
+}
+// Opens a recipe under the day's card, in place, at once. A recipe not in memory loads the tab quietly.
+function openPlannerRecipe(id) {
+  if (!plannerDay) return;
+  if (!(cache.plannerDetail || {})[id]) { plannerRecipeId = id; return loadTab({ quiet: true }); }
+  document.querySelectorAll('[data-fold^="precipe-"]').forEach((w) => w.remove());
+  plannerRecipeId = id;
+  const card = document.querySelector(`[data-fold="day-${plannerDay}"] .planner-day-card`);
+  if (!card) return loadTab({ quiet: true });
+  card.insertAdjacentHTML('afterend', plannerRecipeFoldHtml());
+  syncScreenHtml();
+}
+// Folds the open recipe away, then removes it.
 function closePlannerRecipe() {
-  foldClose(plannerRecipeId ? 'precipe-' + plannerRecipeId : '', () => { plannerRecipeId = null; loadTab({ quiet: true }); });
+  const w = document.querySelector('[data-fold^="precipe-"]');
+  if (!w || w.classList.contains('closing')) { plannerRecipeId = null; return; }
+  foldClose(w.dataset.fold, () => { w.remove(); plannerRecipeId = null; syncScreenHtml(); });
 }
 
 // Opens the Meals tab on a given day, ready to add or edit meals.
