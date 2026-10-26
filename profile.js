@@ -26,21 +26,12 @@ async function screenProfile() {
   }
 
   cache.profileNick = nickname;
+  cache.profileAvatar = avatar;
   let profileHtml;
   if (profileForm) {
     profileHtml = profileFormHtml();
   } else {
-    const picture = avatar
-      ? `<img class="avatar" src="${esc(avatar)}" alt="">`
-      : `<span class="avatar avatar-initial" aria-hidden="true">${esc((nickname || email || '?').trim().charAt(0).toUpperCase())}</span>`;
-    profileHtml = `<div class="card profile-view">
-      ${picture}
-      <div class="profile-text">
-        <strong>${esc(nickname || t('noNickname'))}</strong>
-        <div class="muted">${esc(email)}</div>
-      </div>
-      <button class="btn secondary small" onclick="toggleProfileForm(true)">${esc(t('editProfile'))}</button>
-    </div>`;
+    profileHtml = profileViewHtml(nickname, email, avatar);
   }
 
   return `
@@ -58,6 +49,21 @@ async function screenProfile() {
     ${installCard('settings')}
     ${people}
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
+}
+
+// The profile card: picture, nickname and email, with the edit button.
+function profileViewHtml(nickname, email, avatar) {
+  const picture = avatar
+    ? `<img class="avatar" src="${esc(avatar)}" alt="">`
+    : `<span class="avatar avatar-initial" aria-hidden="true">${esc((nickname || email || '?').trim().charAt(0).toUpperCase())}</span>`;
+  return `<div class="card profile-view">
+      ${picture}
+      <div class="profile-text">
+        <strong>${esc(nickname || t('noNickname'))}</strong>
+        <div class="muted">${esc(email)}</div>
+      </div>
+      <button class="btn secondary small" onclick="toggleProfileForm(true)">${esc(t('editProfile'))}</button>
+    </div>`;
 }
 
 // The nickname and picture form. It takes the place of the profile card.
@@ -135,5 +141,8 @@ async function saveProfile() {
   }
   const { error } = await sb.from('profiles').update(update).eq('id', session.user.id);
   if (error) return setProblem(error);
-  closeFormNow('profile', () => { profileForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
+  // The card shows the new nickname at once. A new photo shows after the tab reloads.
+  cache.profileNick = update.nickname || '';
+  const view = profileViewHtml(cache.profileNick, session?.user?.email || '', cache.profileAvatar || '');
+  closeFormNow('profile', () => { profileForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }), view);
 }

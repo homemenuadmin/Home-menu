@@ -36,6 +36,22 @@ function niceDay(iso, opts) {
   return isoToDate(iso).toLocaleDateString(t('dateLocale'), opts);
 }
 
+// The columns a saved meal is read back with, so it can be shown at once.
+const MEAL_SELECT = 'id, meal_date, meal_slot, servings, status, recipe_id, recipes(title_en, title_ar)';
+// One meal's row in its slot's list.
+function mealRowHtml(m) {
+  const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
+  const statusTag = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
+    : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
+    : `<span class="tag warn">${esc(t('suggested'))}</span>`;
+  let actions = '';
+  if (m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
+  if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
+  if (m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
+  if (can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
+  return `<li data-meal="${m.id}"><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+}
+
 async function screenToday() {
   const today = todayIso();
   const last = isoAddDays(today, CAL_DAYS - 1);
@@ -80,16 +96,7 @@ async function screenToday() {
     html += '<ul class="clean">';
     for (const m of list) {
       if (mealEditId === m.id) { html += `<li data-meal="${m.id}">${mealFormHtml(m)}</li>`; continue; }
-      const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
-      const statusTag = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
-        : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
-        : `<span class="tag warn">${esc(t('suggested'))}</span>`;
-      let actions = '';
-      if (m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
-      if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
-      if (m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
-      if (can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
-      html += `<li data-meal="${m.id}"><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+      html += mealRowHtml(m);
     }
     html += '</ul>';
     if (mealForm === slot) html += mealFormHtml(null, slot);
@@ -278,21 +285,30 @@ async function saveMeal() {
     recipe_id: pickerState.recipeId,
     servings: pickerState.servings,
   };
-  let error;
-  if (mealEditId) {
-    ({ error } = await sb.from('meals').update(fields).eq('id', mealEditId));
-  } else {
-    ({ error } = await sb.from('meals').insert({
-      ...fields,
-      household_id: hh.id,
-      status: 'suggested',
-      created_by: session.user.id,
-    }));
-  }
-  if (error) return setProblem(error);
+  let res;
+  if (mealEditId) res = await sb.from('meals').update(fields).eq('id', mealEditId).select(MEAL_SELECT).single();
+  else res = await sb.from('meals').insert({
+    ...fields,
+    household_id: hh.id,
+    status: 'suggested',
+    created_by: session.user.id,
+  }).select(MEAL_SELECT).single();
+  if (res.error) return setProblem(res.error);
   mealsDay = date;
-  // The form folds closed, then the tab redraws with the saved meal and the confirmation.
-  closeFormNow(mealFormKey(), () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
+  // The saved meal shows at once: an edited meal takes the place of its row, a new one joins its slot's list.
+  // The form then folds closed, and the tab reloads quietly to confirm what was saved.
+  const key = mealFormKey();
+  const reset = () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; };
+  const after = () => loadTab({ quiet: true });
+  if (mealEditId) return closeFormNow(key, reset, after, mealRowHtml(res.data));
+  const card = document.querySelector(`[data-slot="${slot}"]`);
+  const list = card && card.querySelector(':scope > ul.clean');
+  if (list) {
+    list.insertAdjacentHTML('beforeend', mealRowHtml(res.data));
+    const note = card.querySelector('.empty-note');
+    if (note) note.remove();
+  }
+  closeFormNow(key, reset, after);
 }
 
 async function setMealStatus(id, status) {

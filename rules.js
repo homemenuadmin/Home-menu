@@ -4,6 +4,14 @@
 // ---------------------------------------------------------------
 // RULES: dos and don'ts
 // ---------------------------------------------------------------
+// The columns a saved rule is read back with, so it can be shown at once.
+const RULE_SELECT = 'id, kind, text_en, text_ar, ingredient_key';
+// One rule's row in its group.
+function ruleRowHtml(r, editable) {
+  const del = editable ? `<button class="btn small danger" onclick="removeRule('${r.id}')">${esc(t('deleteRule'))}</button>` : '';
+  return `<li><div class="row"><span>${esc(nameOf(r.text_en, r.text_ar))}</span>${del}</div></li>`;
+}
+
 async function screenRules() {
   const { data, error } = await sb
     .from('rules')
@@ -17,10 +25,9 @@ async function screenRules() {
   for (const kind of ['dont', 'do']) {
     const list = data.filter((r) => r.kind === kind);
     if (!list.length) continue;
-    html += `<h2>${esc(t(kind === 'do' ? 'doLabel' : 'dontLabel'))}</h2><div class="card"><ul class="clean">`;
+    html += `<h2>${esc(t(kind === 'do' ? 'doLabel' : 'dontLabel'))}</h2><div class="card" data-kind="${kind}"><ul class="clean">`;
     for (const r of list) {
-      const del = editable ? `<button class="btn small danger" onclick="removeRule('${r.id}')">${esc(t('deleteRule'))}</button>` : '';
-      html += `<li><div class="row"><span>${esc(nameOf(r.text_en, r.text_ar))}</span>${del}</div></li>`;
+      html += ruleRowHtml(r, editable);
     }
     html += '</ul></div>';
   }
@@ -61,15 +68,18 @@ async function saveRule() {
   const text = document.getElementById('rtext').value.trim();
   if (!text) return setProblem(new Error(t('ruleText')));
   const key = document.getElementById('rkey').value.trim().toLowerCase() || null;
-  const { error } = await sb.from('rules').insert({
+  const { data: row, error } = await sb.from('rules').insert({
     household_id: hh.id,
     kind: document.getElementById('rkind').value,
     text_en: text,
     text_ar: document.getElementById('rtext_ar').value.trim() || null,
     ingredient_key: key,
     created_by: session.user.id,
-  });
+  }).select(RULE_SELECT).single();
   if (error) return setProblem(error);
+  // The rule joins its group at once. A first rule of its kind has no group yet, so the tab reloads for it.
+  const list = document.querySelector(`[data-kind="${row.kind}"] > ul.clean`);
+  if (list) list.insertAdjacentHTML('beforeend', ruleRowHtml(row, true));
   closeFormNow('rule', () => { ruleForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }
 

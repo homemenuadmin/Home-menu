@@ -8,6 +8,17 @@ const LEVELS = ['Full', 'Half', 'Low', 'Finished'];
 const LOCATIONS = ['fridge', 'freezer', 'pantry'];
 // itemForm (from core.js) is false, or the location a new item is being added to.
 
+// The columns a saved item is read back with, so it can be shown at once.
+const ITEM_SELECT = 'id, name_en, name_ar, ingredient_key, location, level';
+// One item's row in its location's list.
+function itemRowHtml(it, editable) {
+  const levels = editable
+    ? LEVELS.map((l) => `<button class="chip ${it.level === l ? 'on' : ''}" onclick="setLevel('${it.id}','${l}')">${esc(t(l))}</button>`).join('')
+    : `<span class="tag">${esc(t(it.level))}</span>`;
+  const del = editable ? `<button class="btn small danger" onclick="removeItem('${it.id}')">${esc(t('deleteItem'))}</button>` : '';
+  return `<li><div class="row"><strong>${esc(nameOf(it.name_en, it.name_ar))}</strong>${del}</div><div>${levels}</div></li>`;
+}
+
 async function screenKitchen() {
   const { data, error } = await sb
     .from('pantry_items')
@@ -28,11 +39,7 @@ async function screenKitchen() {
     if (!list.length) html += `<p class="muted empty-note">${esc(t('emptySection'))}</p>`;
     else html += '<ul class="clean">';
     for (const it of list) {
-      const levels = editable
-        ? LEVELS.map((l) => `<button class="chip ${it.level === l ? 'on' : ''}" onclick="setLevel('${it.id}','${l}')">${esc(t(l))}</button>`).join('')
-        : `<span class="tag">${esc(t(it.level))}</span>`;
-      const del = editable ? `<button class="btn small danger" onclick="removeItem('${it.id}')">${esc(t('deleteItem'))}</button>` : '';
-      html += `<li><div class="row"><strong>${esc(nameOf(it.name_en, it.name_ar))}</strong>${del}</div><div>${levels}</div></li>`;
+      html += itemRowHtml(it, editable);
     }
     if (list.length) html += '</ul>';
 
@@ -80,7 +87,7 @@ async function saveItem() {
   const name = document.getElementById('iname').value.trim();
   if (!name) return setProblem(new Error(t('itemName')));
   const key = (document.getElementById('ikey').value.trim() || name).toLowerCase();
-  const { error } = await sb.from('pantry_items').insert({
+  const { data: row, error } = await sb.from('pantry_items').insert({
     household_id: hh.id,
     name_en: name,
     name_ar: document.getElementById('iname_ar').value.trim() || null,
@@ -88,9 +95,22 @@ async function saveItem() {
     location: itemForm,
     level: document.getElementById('ilevel').value,
     updated_by: session.user.id,
-  });
+  }).select(ITEM_SELECT).single();
   if (error) return setProblem(error);
-  closeFormNow('item-' + itemForm, () => { itemForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
+  // The new item shows in its location's list at once. The list is made if the location was empty.
+  const loc = itemForm;
+  const card = document.querySelector(`[data-loc="${loc}"]`);
+  if (card) {
+    let list = card.querySelector(':scope > ul.clean');
+    const box = formBox('item-' + loc);
+    if (!list && box) { box.insertAdjacentHTML('beforebegin', '<ul class="clean"></ul>'); list = card.querySelector(':scope > ul.clean'); }
+    if (list) {
+      list.insertAdjacentHTML('beforeend', itemRowHtml(row, true));
+      const note = card.querySelector('.empty-note');
+      if (note) note.remove();
+    }
+  }
+  closeFormNow('item-' + loc, () => { itemForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }
 
 async function setLevel(id, level) {

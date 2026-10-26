@@ -105,8 +105,8 @@ function closeOpenFormsNow(except) {
   }
 }
 // Closes a form: the content it replaced goes back below it, the form folds away, then reset() runs, then after()
-// (or a quiet reload, when nothing was put back).
-function closeFormNow(key, reset, after) {
+// (or a quiet reload, when nothing was put back). replacement, if given, is put back in place of the saved content.
+function closeFormNow(key, reset, after, replacement) {
   const wrap = document.querySelector(`[data-fold="${key}"]`);
   if (wrap && wrap.classList.contains('closing')) return;
   const rec = openForms[key];
@@ -114,7 +114,8 @@ function closeFormNow(key, reset, after) {
   const box = formBox(key);
   if (!box) { reset(); if (after) after(); else loadTab({ quiet: true }); return; }
   const finish = () => { reset(); if (after) after(); else if (!rec) loadTab({ quiet: true }); };
-  if (rec) box.insertAdjacentHTML('afterend', rec.html);
+  const back = replacement !== undefined ? replacement : (rec && rec.html);
+  if (back) box.insertAdjacentHTML('afterend', back);
   foldClose(key, () => { box.remove(); syncScreenHtml(); finish(); });
 }
 
