@@ -243,7 +243,8 @@ function cancelMeal() {
   const card = wrap.closest('.card');
   const slot = typeof mealForm === 'string' ? mealForm : null;
   if (card && slot && !mealEditId) {
-    const hasItems = card.querySelectorAll('ul.clean > li').length > 0;
+    // Only the slot's own meal list counts. The recipe rows in the picker also use ul.clean, so don't look at those.
+    const hasItems = card.querySelectorAll(':scope > ul.clean > li').length > 0;
     const ph = document.createElement('div');
     ph.className = 'meal-placeholder';
     ph.innerHTML = (hasItems ? '' : `<p class="muted">${esc(t('noMealsSlot'))}</p>`)
