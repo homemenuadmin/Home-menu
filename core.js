@@ -94,8 +94,19 @@ async function switchMyRole(next) {
 function messages() {
   let out = '';
   if (problem) out += `<div class="error">${esc(problem)}</div>`;
-  if (notice) out += `<div class="notice">${esc(notice)}</div>`;
+  // Success messages pop up briefly and then go away on their own (see watchNotice).
+  if (notice) out += `<div class="toast" role="status">${esc(notice)}</div>`;
   return out;
+}
+let noticeTimer = null;
+let noticeTimerText = null;
+// Clears a success message a couple of seconds after it appears. A new message starts its own timer.
+function watchNotice() {
+  if (!notice) return;
+  if (noticeTimer && noticeTimerText === notice) return;
+  clearTimeout(noticeTimer);
+  noticeTimerText = notice;
+  noticeTimer = setTimeout(() => { notice = ''; noticeTimer = null; render(); }, 2200);
 }
 function setProblem(err) {
   problem = t('errorPrefix') + (err && err.message ? err.message : String(err));
@@ -106,6 +117,7 @@ function setNotice(msg) { notice = msg; problem = ''; render(); }
 
 function render() {
   applyLang();
+  watchNotice();
   const app = document.getElementById('app');
   const nav = document.getElementById('nav');
   if (!session) {
@@ -153,7 +165,7 @@ function render() {
   app.innerHTML = `
     <div class="top">
       <button class="icon-btn" onclick="openDrawer()" aria-label="${esc(t('menu'))}" aria-expanded="${drawerOpen}">${MENU_ICON}</button>
-      <div>
+      <div class="top-title">
         <div class="muted">${esc(hh.name)}</div>
         <h1>${esc(t(tab))}</h1>
       </div>

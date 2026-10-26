@@ -278,3 +278,17 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
             color:var(--ink); font:inherit; font-size:18px; text-align:start; cursor:pointer; }
 .role-opt:hover, .role-opt:focus-visible { background:var(--bg); }
 .role-opt.on { background:var(--teal-soft); color:var(--teal); font-weight:700; }
+
+/* Success messages: a small pop-up that goes away by itself. */
+.toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:90;
+         background:var(--ink); color:#fff; padding:12px 18px; border-radius:14px; font-size:18px; font-weight:600;
+         box-shadow:0 8px 24px rgba(0,0,0,.2); max-width:calc(100% - 32px); text-align:center;
+         animation: toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
+
+/* Header: menu and title on the left, role and language on the right, all on one row. */
+.top-title { flex:1 1 auto; min-width:0; text-align:start; }
+.top-title h1 { font-size:28px; margin:4px 0 0; overflow-wrap:anywhere; }
+.top-actions { flex-wrap:nowrap; gap:6px; }
+.top-actions .role-toggle { font-size:15px; padding:6px 10px; min-height:44px; }
+.top-actions .btn.small { min-height:44px; font-size:16px; padding:6px 12px; }
