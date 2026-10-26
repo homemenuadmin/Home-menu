@@ -183,6 +183,8 @@ function render() {
     ${messages()}
     <div id="screen" class="${screenClass('main:' + tab)}${screenBusy ? ' busy' : ''}">${cache.screenHtml || ''}</div>
     ${tourHtml()}`;
+  // The family Home sets up its greeting and meals sheet once the screen is in place.
+  if (tab === 'home') setupHome(cache.playIntro);
 }
 
 // The side menu: the tabs, and Profile (where sign out lives).
@@ -348,6 +350,8 @@ async function go(k) {
 async function loadTab() {
   // Same screen: keep what is showing, dimmed, until the new data arrives. Different screen: soft placeholder shapes.
   screenBusy = cache.screenTab === tab;
+  // Coming to Home from another tab plays the greeting and the sheet rising.
+  if (tab === 'home' && cache.screenTab !== 'home') { homeLanded = false; cache.playIntro = true; }
   if (!screenBusy) cache.screenHtml = skeletonHtml();
   cache.loading = true;
   render();

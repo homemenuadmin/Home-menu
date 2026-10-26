@@ -94,11 +94,8 @@ async function screenToday() {
 // The form for a new meal (existing is null) or for editing one.
 function mealFormHtml(existing, slotDefault) {
   const slot = existing ? existing.meal_slot : slotDefault;
-  const date = existing ? existing.meal_date : mealsDay;
   const recipeId = existing ? existing.recipe_id : '';
   const servings = existing ? existing.servings : 4;
-  const today = todayIso();
-  const last = isoAddDays(today, CAL_DAYS - 1);
   const recipes = cache.recipes || [];
   const recipeOptions = recipes.map((r) => `<option value="${r.id}" ${r.id === recipeId ? 'selected' : ''}>${esc(nameOf(r.title_en, r.title_ar))}</option>`).join('');
   return `<div class="meal-form">
@@ -106,8 +103,6 @@ function mealFormHtml(existing, slotDefault) {
       ${recipes.length ? '' : `<p class="muted">${esc(t('addRecipeFirst'))}</p>`}
       <label>${esc(t('chooseSlot'))}</label>
       <select id="mslot">${SLOTS.map((s) => `<option value="${s}" ${s === slot ? 'selected' : ''}>${esc(t(s))}</option>`).join('')}</select>
-      <label>${esc(t('mealDate'))}</label>
-      <input id="mdate" type="date" value="${date}" min="${today}" max="${last}">
       <label>${esc(t('chooseRecipe'))}</label>
       <select id="mrecipe">${recipeOptions}</select>
       <label>${esc(t('servings'))}</label>
@@ -123,11 +118,11 @@ function editMeal(id) { mealEditId = id; mealForm = false; loadTab(); }
 function cancelMeal() { mealForm = false; mealEditId = null; loadTab(); }
 
 async function saveMeal() {
-  const date = document.getElementById('mdate').value;
+  // The meal goes on the day chosen at the top of the screen.
+  const date = mealsDay;
   const today = todayIso();
   const last = isoAddDays(today, CAL_DAYS - 1);
-  if (!date) return setProblem(new Error(t('pickDate')));
-  if (date < today || date > last) return setProblem(new Error(t('dateOutsideCalendar')));
+  if (!date || date < today || date > last) return setProblem(new Error(t('dateOutsideCalendar')));
   const fields = {
     meal_date: date,
     meal_slot: document.getElementById('mslot').value,

@@ -298,3 +298,36 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .planner-day-card { margin-top: 12px; }
 .planner-meal { border-top: 1px solid rgba(0,0,0,0.08); padding: 10px 0; }
 .planner-meal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* Family Home: the greeting, then a sheet of today's confirmed meals that rises over it.
+   The stage is as tall as the screen, and the greeting is never inside a scroll, so it can't be scrolled back to. */
+.home-stage { --p: 0; --ease: cubic-bezier(.16, 1, .3, 1); position: relative; overflow: hidden; height: 640px; margin: 0 -4px; }
+.home-greet { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 22px 64px; }
+.home-greet-inner { transform: translate3d(0, calc(var(--p) * -90px), 0) scale(calc(1 - var(--p) * 0.06)); opacity: calc(1 - var(--p) * 1.25); transform-origin: 0 50%; will-change: transform, opacity; }
+.home-date { font-size: 17px; color: var(--muted, #6B7673); }
+.home-hello { font-size: 42px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; margin: 8px 0 0; }
+.home-note { margin: 16px 0 0; font-size: 15px; line-height: 1.5; max-width: 300px; }
+.home-cue { position: absolute; left: 0; right: 0; bottom: 30px; text-align: center; font-size: 13px; color: var(--muted, #6B7673); opacity: calc(1 - var(--p) * 3); }
+.home-blob { position: absolute; right: -110px; top: 90px; width: 300px; height: 300px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 40% 40%, var(--accent-soft, #E0F4F1), transparent 70%);
+  transform: translate3d(calc(var(--p) * 70px), calc(var(--p) * -40px), 0) scale(calc(1 + var(--p) * 0.25));
+  opacity: calc(0.9 - var(--p) * 0.9); }
+.home-sheet { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: var(--bg, #FBF7F2); border-radius: 28px 28px 0 0;
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.08); padding: 12px 16px 28px; overflow-y: auto; overscroll-behavior: contain; will-change: transform; }
+.home-grab { width: 40px; height: 5px; border-radius: 99px; background: var(--line, rgba(31,42,42,0.12)); margin: 0 auto 14px; }
+.home-sheet-title { font-size: 22px; margin: 4px 4px 8px; }
+.home-meal { opacity: 0; transform: translate3d(0, 26px, 0); filter: blur(4px);
+  transition: opacity .8s var(--ease), transform 1s var(--ease), filter .8s var(--ease);
+  transition-delay: calc(var(--i, 0) * 120ms); }
+.home-sheet.revealed .home-meal { opacity: 1; transform: none; filter: none; }
+.home-picker { width: 100%; margin: 8px 0 18px; }
+.home-empty { padding: 8px 4px; }
+.home-stage.intro .home-date { animation: homeFade .9s var(--ease) .3s both; }
+.home-stage.intro .home-hello { animation: homeRise 1s var(--ease) .45s both; }
+.home-stage.intro .home-note { animation: homeFade .9s var(--ease) .9s both; }
+@keyframes homeFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes homeRise { from { opacity: 0; transform: translate3d(0, 18px, 0); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .home-meal { transition: none !important; opacity: 1; transform: none; filter: none; }
+  .home-stage.intro * { animation: none !important; }
+}
