@@ -3,6 +3,18 @@
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 let homeLanded = false;   // true once the greeting has given way to the meals sheet on this visit
+let homeIntroMem = false; // the intro has played in this page, in case browser storage is unavailable
+
+// The intro plays once per app opening. It's remembered for the browser session, so going back to the app,
+// or the page reloading in the background, doesn't repeat it. A fresh open of the app plays it again.
+function introPlayed() {
+  if (homeIntroMem) return true;
+  try { return sessionStorage.getItem('homemenu-intro') === '1'; } catch (e) { return false; }
+}
+function markIntroPlayed() {
+  homeIntroMem = true;
+  try { sessionStorage.setItem('homemenu-intro', '1'); } catch (e) {}
+}
 
 async function screenHome() {
   const [meals, low] = await Promise.all([
@@ -135,6 +147,7 @@ function setupHome(intro) {
   }
 
   setTy(ty0);
+  markIntroPlayed();
   setTimeout(() => {
     glideSheet(ty0, 0, 1500, setTy, () => { homeLanded = true; });
   }, 1900);

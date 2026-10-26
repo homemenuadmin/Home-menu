@@ -350,8 +350,8 @@ async function go(k) {
 async function loadTab() {
   // Same screen: keep what is showing, dimmed, until the new data arrives. Different screen: soft placeholder shapes.
   screenBusy = cache.screenTab === tab;
-  // Coming to Home from another tab plays the greeting and the sheet rising.
-  if (tab === 'home' && cache.screenTab !== 'home') { homeLanded = false; cache.playIntro = true; }
+  // The greeting and the sheet rising play once each time the app is opened, not on every visit to Home.
+  if (tab === 'home' && !introPlayed()) { homeLanded = false; cache.playIntro = true; }
   if (!screenBusy) cache.screenHtml = skeletonHtml();
   cache.loading = true;
   render();
