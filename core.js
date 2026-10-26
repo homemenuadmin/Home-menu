@@ -488,7 +488,10 @@ async function loadTab(opts = {}) {
 // The app listens to the household's tables (the database only sends rows the user may see) and reloads
 // the screen quietly. It waits while someone is typing or a fold is closing, so nothing is lost or jumps.
 // ---------------------------------------------------------------
-const LIVE_TABLES = ['meals', 'pantry_items', 'recipes', 'recipe_ingredients', 'rules', 'household_members', 'favorites', 'households'];
+const LIVE_TABLES = ['meals', 'pantry_items', 'recipes', 'recipe_ingredients', 'rules', 'household_members', 'favorites', 'households', 'profiles'];
+// Changes to who is in the household, or their role, mean the household itself must be read again before the tab.
+const HOUSEHOLD_TABLES = ['household_members', 'households'];
+let householdDirty = false;
 let liveChannel = null;
 let liveHousehold = null;
 let liveTimer = null;
@@ -501,7 +504,7 @@ function ensureLive() {
   liveHousehold = hh.id;
   liveChannel = sb.channel('household-' + hh.id);
   for (const table of LIVE_TABLES) {
-    liveChannel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
+    liveChannel.on('postgres_changes', { event: '*', schema: 'public', table }, () => scheduleRefresh(table));
   }
   liveChannel.subscribe();
   if (!liveVisibilityOn) {
@@ -516,11 +519,12 @@ function stopLive() {
   liveHousehold = null;
   clearTimeout(liveTimer);
 }
-function scheduleRefresh() {
+function scheduleRefresh(table) {
+  if (HOUSEHOLD_TABLES.includes(table)) householdDirty = true;
   clearTimeout(liveTimer);
   liveTimer = setTimeout(refreshNow, 300);
 }
-function refreshNow() {
+async function refreshNow() {
   if (!hh || !session) return;
   const el = document.activeElement;
   if (el && el.matches && el.matches('input, textarea, select')) {
@@ -532,6 +536,13 @@ function refreshNow() {
   if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded)) {
     liveTimer = setTimeout(refreshNow, 200);
     return;
+  }
+  if (householdDirty) {
+    // The role or membership may have changed: read the household again, and move off a tab the new role cannot see.
+    householdDirty = false;
+    await loadHousehold();
+    if (!hh) return render();
+    if (!ROLE_TABS[activeRole()].includes(tab) && tab !== 'profile') tab = 'home';
   }
   loadTab({ quiet: true });
 }
