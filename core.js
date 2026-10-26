@@ -347,14 +347,16 @@ async function go(k) {
   await loadTab();
 }
 
-async function loadTab() {
+// quiet: the screen already shows what it should (for example, after Cancel), so it is not dimmed or redrawn while the data reloads.
+async function loadTab(opts = {}) {
+  const quiet = !!opts.quiet;
   // Same screen: keep what is showing, dimmed, until the new data arrives. Different screen: soft placeholder shapes.
-  screenBusy = cache.screenTab === tab;
+  screenBusy = cache.screenTab === tab && !quiet;
   // The greeting and the sheet rising play once each time the app is opened, not on every visit to Home.
   if (tab === 'home' && !introPlayed()) { homeLanded = false; cache.playIntro = true; }
-  if (!screenBusy) cache.screenHtml = skeletonHtml();
+  if (!screenBusy && !quiet) cache.screenHtml = skeletonHtml();
   cache.loading = true;
-  render();
+  if (!quiet) render();
   try {
     if (tab === 'home') cache.screenHtml = await screenHome();
     if (tab === 'today') cache.screenHtml = await screenToday();

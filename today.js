@@ -251,7 +251,7 @@ function cancelMeal() {
     wrap.after(ph);
   }
   wrap.classList.add('closing');
-  setTimeout(() => { mealForm = false; mealEditId = null; loadTab(); }, 380);
+  setTimeout(() => { mealForm = false; mealEditId = null; loadTab({ quiet: true }); }, 380);
 }
 
 async function saveMeal() {
