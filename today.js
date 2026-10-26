@@ -164,18 +164,18 @@ function pickerRowHtml(r) {
   const tag = r.ready
     ? `<span class="tag">${esc(t('ready'))}</span>`
     : `<span class="tag warn">${esc(t('missing'))} ${r.missing}</span>`;
-  const ings = r.ings.map((i) => {
+  const ings = r.ings.map((i, idx) => {
     const mark = i.optional ? `<span class="muted">${esc(t('optional'))}</span>`
       : (i.have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
-    return `<li><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}</span>${mark}</div></li>`;
+    return `<li style="--i:${idx}"><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}</span>${mark}</div></li>`;
   }).join('');
-  return `<div class="pick-item ${open ? 'open' : ''}">
+  return `<div class="pick-item ${open ? 'open' : ''}" data-pick="${r.id}">
       <button class="pick-row" onclick="togglePick('${r.id}')" aria-expanded="${open}">
         <span class="pick-thumb" style="background:${color}" aria-hidden="true">${initial}</span>
         <span class="pick-meta"><strong>${esc(name)}</strong><small>${r.minutes} min</small><span>${tag}</span></span>
         <span class="pick-chev" aria-hidden="true">⌄</span>
       </button>
-      <div class="pick-details">
+      <div class="pick-details"><div class="pick-details-inner">
         <ul class="clean pick-ings">${ings}</ul>
         <div class="pick-actions">
           <div class="stepper">
@@ -185,7 +185,8 @@ function pickerRowHtml(r) {
           </div>
           <button class="btn" onclick="chooseRecipe('${r.id}')">${esc(pickerState.mealId ? t('save') : t('addMeal'))}</button>
         </div>
-      </div>
+        <div class="pick-cancel"><button class="btn secondary" onclick="closePick()">${esc(t('cancel'))}</button></div>
+      </div></div>
     </div>`;
 }
 
@@ -194,8 +195,34 @@ function rerenderPicker() {
   const el = document.getElementById('pickerList');
   if (el) el.innerHTML = pickerListHtml();
 }
-function togglePick(id) { pickerState.openId = pickerState.openId === id ? null : id; rerenderPicker(); }
-function pickServings(d) { pickerState.servings = Math.min(12, Math.max(1, pickerState.servings + d)); rerenderPicker(); }
+// Opening and closing only change classes on the cards that already exist, so the browser can animate between states.
+// Rebuilding the list here would throw that away.
+function paintPicks() {
+  document.querySelectorAll('.pick-item').forEach((el) => {
+    const open = el.dataset.pick === pickerState.openId;
+    el.classList.toggle('open', open);
+    el.querySelector('.pick-row').setAttribute('aria-expanded', String(open));
+  });
+}
+// Once an opened card has grown, scroll the list just enough to show its bottom edge.
+function revealPick() {
+  const list = document.getElementById('pickerList');
+  const el = document.querySelector('.pick-item.open');
+  if (!list || !el) return;
+  const box = list.getBoundingClientRect();
+  const card = el.getBoundingClientRect();
+  if (card.bottom > box.bottom) list.scrollBy({ top: card.bottom - box.bottom + 10, behavior: 'smooth' });
+}
+function togglePick(id) {
+  pickerState.openId = pickerState.openId === id ? null : id;
+  paintPicks();
+  if (pickerState.openId) setTimeout(revealPick, 420);
+}
+function closePick() { pickerState.openId = null; paintPicks(); }
+function pickServings(d) {
+  pickerState.servings = Math.min(12, Math.max(1, pickerState.servings + d));
+  document.querySelectorAll('.pick-item output').forEach((o) => { o.textContent = pickerState.servings; });
+}
 function filterPicker(v) { pickerState.filter = v; rerenderPicker(); }
 function chooseRecipe(id) { pickerState.recipeId = id; saveMeal(); }
 
