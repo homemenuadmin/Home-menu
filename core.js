@@ -252,13 +252,7 @@ function render() {
     return;
   }
   // After the first-time questions, the guided tour starts once (until it is finished or skipped).
-  if (!hh.tourDone && tourStep === null) {
-    startTour();
-    nav.hidden = true;
-    app.innerHTML = `<div class="top"><div></div><div></div></div>${skeletonHtml()}`;
-    setTimeout(() => loadTab(), 0);
-    return;
-  }
+  if (!hh.tourDone && tourStep === null) startTour();   // the tour shows over the screen that is loading, with no second load
   // The side menu is built once per household and role, so it can slide in and out without being redrawn.
   nav.hidden = false;
   const key = drawerKey();
