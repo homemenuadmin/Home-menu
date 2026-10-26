@@ -43,21 +43,21 @@ async function peopleSection() {
 async function changeRole(userId, role) {
   const { error } = await sb.from('household_members').update({ role }).eq('household_id', hh.id).eq('user_id', userId);
   if (error) return setProblem(error);
-  setNotice(t('ok'));
-  await loadTab();
+  notice = t('ok'); problem = '';
+  await loadTab({ quiet: true });
 }
 
 async function createInviteCode() {
   const { data, error } = await sb.rpc('create_invite_code', { p_household: hh.id });
   if (error) return setProblem(error);
-  setNotice(t('codeMade') + ' ' + data);
-  await loadTab();
+  notice = t('codeMade') + ' ' + data; problem = '';
+  await loadTab({ quiet: true });
 }
 
 async function revokeInviteCode(code) {
   if (!confirm(t('confirmRevokeCode'))) return;
   const { error } = await sb.from('invite_codes').update({ revoked: true }).eq('code', code);
   if (error) return setProblem(error);
-  setNotice(t('ok'));
-  await loadTab();
+  notice = t('ok'); problem = '';
+  await loadTab({ quiet: true });
 }

@@ -27,7 +27,7 @@ async function screenProfile() {
 
   let profileHtml;
   if (profileForm) {
-    profileHtml = `<div class="card">
+    profileHtml = `<div class="fold${foldEnter('profile')}" data-fold="profile"><div class="card">
       <h2 style="margin-top:0">${esc(t('editProfile'))}</h2>
       <label>${esc(t('nickname'))}</label>
       <input id="pnick" value="${esc(nickname)}" maxlength="30" autocomplete="nickname">
@@ -35,7 +35,7 @@ async function screenProfile() {
       <input id="pphoto" type="file" accept="image/*">
       <button class="btn" onclick="saveProfile()">${esc(t('save'))}</button>
       <button class="btn secondary" onclick="toggleProfileForm(false)">${esc(t('cancel'))}</button>
-    </div>`;
+    </div></div>`;
   } else {
     const picture = avatar
       ? `<img class="avatar" src="${esc(avatar)}" alt="">`
@@ -67,7 +67,11 @@ async function screenProfile() {
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
 }
 
-async function toggleProfileForm(on) { profileForm = on; await loadTab(); }
+// Opens the nickname and picture form (it grows open), or folds it closed when off.
+function toggleProfileForm(on) {
+  if (on) { profileForm = true; return loadTab({ quiet: true }); }
+  foldClose('profile', () => { profileForm = false; loadTab({ quiet: true }); });
+}
 
 // Changes your own role (Cook or Family member). The layout follows it.
 async function changeMyRole(role) {
@@ -79,7 +83,7 @@ async function changeMyRole(role) {
   problem = '';
   notice = t('roleChanged');
   if (!ROLE_TABS[role].includes(tab) && tab !== 'profile') tab = 'home';
-  await loadTab();
+  await loadTab({ quiet: true });
 }
 
 // Makes a square, smaller JPEG of the chosen photo, so uploads stay small.
@@ -116,7 +120,5 @@ async function saveProfile() {
   }
   const { error } = await sb.from('profiles').update(update).eq('id', session.user.id);
   if (error) return setProblem(error);
-  profileForm = false;
-  setNotice(t('ok'));
-  await loadTab();
+  foldClose('profile', () => { profileForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
 }

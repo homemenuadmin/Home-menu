@@ -26,14 +26,14 @@ async function screenRules() {
   }
   if (editable) {
     if (ruleForm) {
-      html += `<div class="card"><h2 style="margin-top:0">${esc(t('addRule'))}</h2>
+      html += `<div class="fold${foldEnter('rule')}" data-fold="rule"><div class="card"><h2 style="margin-top:0">${esc(t('addRule'))}</h2>
         <label>&nbsp;</label>
         <select id="rkind"><option value="dont">${esc(t('dontLabel'))}</option><option value="do">${esc(t('doLabel'))}</option></select>
         <label>${esc(t('ruleText'))}</label><input id="rtext">
         <label>${esc(t('ruleTextAr'))}</label><input id="rtext_ar">
         <label>${esc(t('ruleIngredient'))}</label><input id="rkey">
         <button class="btn" onclick="saveRule()">${esc(t('save'))}</button>
-        <button class="btn secondary" onclick="toggleRuleForm(false)">${esc(t('cancel'))}</button></div>`;
+        <button class="btn secondary" onclick="toggleRuleForm(false)">${esc(t('cancel'))}</button></div></div>`;
     } else {
       html += `<button class="btn" onclick="toggleRuleForm(true)">${esc(t('addRule'))}</button>`;
     }
@@ -41,7 +41,11 @@ async function screenRules() {
   return html;
 }
 
-async function toggleRuleForm(on) { ruleForm = on; await loadTab(); }
+// Opens the rule form (it grows open), or folds it closed when off.
+function toggleRuleForm(on) {
+  if (on) { ruleForm = true; return loadTab({ quiet: true }); }
+  foldClose('rule', () => { ruleForm = false; loadTab({ quiet: true }); });
+}
 
 async function saveRule() {
   const text = document.getElementById('rtext').value.trim();
@@ -56,14 +60,12 @@ async function saveRule() {
     created_by: session.user.id,
   });
   if (error) return setProblem(error);
-  ruleForm = false;
-  setNotice(t('ok'));
-  await loadTab();
+  foldClose('rule', () => { ruleForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
 }
 
 async function removeRule(id) {
   if (!confirm(t('confirmDeleteRule'))) return;
   const { error } = await sb.from('rules').delete().eq('id', id);
   if (error) return setProblem(error);
-  await loadTab();
+  await loadTab({ quiet: true });
 }

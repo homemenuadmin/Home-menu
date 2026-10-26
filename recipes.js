@@ -1,4 +1,6 @@
 // Recipes tab: browse, matched to stock, filtered by rules.
+// Each recipe opens in place, the same way as a card in the meal picker. Searching filters the list
+// without redrawing the screen, so the search box keeps its place.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
 // ---------------------------------------------------------------
@@ -21,57 +23,81 @@ async function screenRecipes() {
   for (const i of ings.data) (ingMap[i.recipe_id] = ingMap[i.recipe_id] || []).push(i);
   cache.recipeIngredients = ingMap;
 
-  let hidden = 0;
-  const shown = rec.data.filter((r) => {
-    const keys = (ingMap[r.id] || []).map((i) => i.ingredient_key);
-    if (keys.some((k) => donts.has(k))) { hidden++; return false; }
-    return true;
-  }).filter((r) => {
-    if (!recipeFilter) return true;
-    const q = recipeFilter.toLowerCase();
-    return (r.title_en || '').toLowerCase().includes(q) || (r.title_ar || '').includes(recipeFilter);
-  });
+  // Recipes with an ingredient the household has ruled out are hidden.
+  const rows = rec.data.filter((r) => !(ingMap[r.id] || []).some((i) => donts.has(i.ingredient_key)));
+  const hidden = rec.data.length - rows.length;
+  cache.recipeList = { rows, inStock, availMap, ingMap };
 
   let html = `<input id="rsearch" placeholder="${esc(t('search'))}" value="${esc(recipeFilter)}" oninput="filterRecipes(this.value)">`;
   if (hidden) html += `<p class="muted">${hidden} ${esc(t('hiddenByRules'))}</p>`;
-
-  if (openRecipeId) {
-    const r = rec.data.find((x) => x.id === openRecipeId);
-    if (r) {
-      const list = ingMap[r.id] || [];
-      html += `<div class="card"><h2 style="margin-top:0">${esc(nameOf(r.title_en, r.title_ar))}</h2>
-        <p class="muted">${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</p>
-        <h3>${esc(t('ingredients'))}</h3><ul class="clean">`;
-      for (const i of list) {
-        const have = inStock.has(i.ingredient_key);
-        const mark = i.optional ? '' : (have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
-        html += `<li><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}${i.optional ? ' · (optional)' : ''}</span>${mark}</div></li>`;
-      }
-      html += `</ul><h3>${esc(t('steps'))}</h3><p class="step">${esc(nameOf(r.steps_en, r.steps_ar)).replace(/\n/g, '<br>')}</p>
-        <button class="btn secondary" onclick="closeRecipe()">${esc(t('back'))}</button></div>`;
-    }
-    return html;
-  }
-
-  if (!shown.length) html += `<p class="muted">${esc(t('noRecipes'))}</p>`;
-  for (const r of shown) {
-    const a = availMap[r.id];
-    const ready = a && a.in_stock_count >= a.required_count;
-    const status = ready
-      ? `<span class="tag">${esc(t('ready'))}</span>`
-      : `<span class="tag warn">${esc(t('missing'))} ${a ? a.required_count - a.in_stock_count : '?'}</span>`;
-    html += `<div class="card" onclick="openRecipe('${r.id}')" style="cursor:pointer">
-      <div class="row"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong>${status}</div>
-      <div class="muted">${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</div></div>`;
-  }
+  html += `<div id="recipeList" data-keep-scroll>${recipeListHtml()}</div>`;
   return html;
 }
 
-let filterTimer = null;
+// The list, filtered by the search. Built from the data already loaded, so searching needs no network.
+function recipeListHtml() {
+  const c = cache.recipeList;
+  if (!c) return '';
+  const q = (recipeFilter || '').trim().toLowerCase();
+  const qRaw = (recipeFilter || '').trim();
+  const shown = c.rows.filter((r) => !q || (r.title_en || '').toLowerCase().includes(q) || (r.title_ar || '').includes(qRaw));
+  if (!shown.length) return `<p class="muted">${esc(t('noRecipes'))}</p>`;
+  return shown.map((r) => recipeRowHtml(r, c)).join('');
+}
+
+// One recipe: a row that opens in place to its ingredients and steps. It is built once, and opening
+// only changes its classes (see paintRecipes), so the browser can animate it.
+function recipeRowHtml(r, c) {
+  const open = openRecipeId === r.id;
+  const a = c.availMap[r.id];
+  const ready = a && a.in_stock_count >= a.required_count;
+  const status = ready
+    ? `<span class="tag">${esc(t('ready'))}</span>`
+    : `<span class="tag warn">${esc(t('missing'))} ${a ? a.required_count - a.in_stock_count : '?'}</span>`;
+  const ings = (c.ingMap[r.id] || []).map((i, idx) => {
+    const have = c.inStock.has(i.ingredient_key);
+    const mark = i.optional ? '' : (have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
+    return `<li style="--i:${idx}"><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}${i.optional ? ' · (' + esc(t('optional')) + ')' : ''}</span>${mark}</div></li>`;
+  }).join('');
+  return `<div class="pick-item ${open ? 'open' : ''}" data-recipe="${r.id}">
+      <button class="pick-row" onclick="toggleRecipe('${r.id}')" aria-expanded="${open}">
+        <span class="pick-meta"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong><small>${esc(t(r.meal_slot || 'lunch'))} · ${r.minutes} min</small><span>${status}</span></span>
+        <span class="pick-chev" aria-hidden="true">⌄</span>
+      </button>
+      <div class="pick-details"><div class="pick-details-inner">
+        <h3 style="margin-top:0">${esc(t('ingredients'))}</h3>
+        <ul class="clean pick-ings">${ings}</ul>
+        <h3>${esc(t('steps'))}</h3>
+        <p class="pick-steps">${esc(nameOf(r.steps_en, r.steps_ar)).replace(/\n/g, '<br>')}</p>
+        <div class="pick-cancel"><button class="btn secondary" onclick="closeRecipe()">${esc(t('back'))}</button></div>
+      </div></div>
+    </div>`;
+}
+
+// Searching: only the list is drawn again, so the search box keeps focus.
 function filterRecipes(v) {
   recipeFilter = v;
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(loadTab, 250);
+  const el = document.getElementById('recipeList');
+  if (el) el.innerHTML = recipeListHtml();
 }
-async function openRecipe(id) { openRecipeId = id; await loadTab(); }
-async function closeRecipe() { openRecipeId = null; await loadTab(); }
+
+// Opening and closing change only the classes on the existing rows, so the browser animates between states.
+function paintRecipes() {
+  document.querySelectorAll('[data-recipe]').forEach((el) => {
+    const open = el.dataset.recipe === openRecipeId;
+    el.classList.toggle('open', open);
+    el.querySelector('.pick-row').setAttribute('aria-expanded', String(open));
+  });
+}
+function toggleRecipe(id) {
+  openRecipeId = openRecipeId === id ? null : id;
+  paintRecipes();
+  if (openRecipeId) {
+    // Once it has opened, bring its bottom edge into view if it has gone below the screen.
+    setTimeout(() => {
+      const el = document.querySelector(`[data-recipe="${openRecipeId}"]`);
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, motion('--pick-open', 460));
+  }
+}
+function closeRecipe() { openRecipeId = null; paintRecipes(); }

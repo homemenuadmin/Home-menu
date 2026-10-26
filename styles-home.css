@@ -374,15 +374,22 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .stepper output { min-width: 48px; text-align: center; font-size: 16px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .pick-item, .pick-item *, .pick-item *::before { transition-duration: 1ms !important; transition-delay: 0ms !important; } }
 
-/* The add-a-meal panel. It grows open when it appears, and folds closed on Cancel before it is removed.
-   Height changes through grid rows, so the panel takes its real height. */
-.meal-wrap { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows var(--pick-close) var(--pick-io), opacity var(--pick-close) ease; }
-.meal-wrap > .meal-form { min-height: 0; overflow: hidden; }
-.meal-wrap { animation: mealOpen var(--pick-open) var(--pick-out); }
-.meal-wrap.closing { grid-template-rows: 0fr; opacity: 0; animation: none; }
-@keyframes mealOpen { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .meal-wrap, .meal-wrap.closing, .meal-placeholder { animation: none; transition-duration: 1ms; } }
+/* Fold: any form or detail that opens in place. It grows open once when it first appears, and folds closed
+   before it is removed. Height changes through grid rows, so it takes its real height. The entrance plays only
+   with the .enter class, which the app adds the first time a form is shown, so a refresh never replays it. */
+.fold { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows var(--pick-close) var(--pick-io), opacity var(--pick-close) ease; }
+.fold > * { min-height: 0; overflow: hidden; }
+.fold.enter { animation: foldOpen var(--pick-open) var(--pick-out); }
+.fold.closing { grid-template-rows: 0fr; opacity: 0; animation: none; }
+@keyframes foldOpen { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 .meal-placeholder { animation: placeFade var(--pick-close) ease; }
+/* The recipe details, shared with the picker's expanding cards. */
+.pick-steps { margin: 10px 0 0; font-size: 15px; line-height: 1.5; white-space: normal; }
+/* Room for the scrollbar is always reserved, so the page and the side menu never shift when it appears. */
+html { scrollbar-gutter: stable; }
+.drawer { scrollbar-gutter: stable; }
+/* Timings for the side menu, the language switch and the opening sequence. Read by the script too. */
+:root { --drawer-ms: 300ms; --scrim-ms: 250ms; --lang-ms: 180ms; --intro-hold-ms: 1900ms; --intro-glide-ms: 1500ms; --intro-sheet-ms: 2500ms; }
 
 /* Start-up splash, shown until the first screen is ready. It fades in after a short pause,
    so a quick load never flashes it. */

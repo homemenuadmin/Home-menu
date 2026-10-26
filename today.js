@@ -139,11 +139,12 @@ function startPicker(existing) {
 function mealFormHtml(existing, slotDefault) {
   const slot = existing ? existing.meal_slot : slotDefault;
   const hasRecipes = (cache.pickerRecipes || []).length > 0;
-  return `<div class="meal-wrap"><div class="meal-form">
+  const key = existing ? 'meal-edit-' + existing.id : 'meal-' + slot;
+  return `<div class="fold${foldEnter(key)}" data-fold="${key}"><div class="meal-form">
       <h3 style="margin-top:0">${esc(existing ? t('editMeal') : t('addMeal'))} · ${esc(t(slot))}</h3>
       ${hasRecipes ? '' : `<p class="muted">${esc(t('addRecipeFirst'))}</p>`}
       <input class="picker-search" type="search" value="${esc(pickerState.filter)}" placeholder="${esc(t('search'))}" aria-label="${esc(t('search'))}" oninput="filterPicker(this.value)">
-      <div class="picker-list" id="pickerList">${pickerListHtml()}</div>
+      <div class="picker-list" id="pickerList" data-keep-scroll>${pickerListHtml()}</div>
       <button class="btn secondary" onclick="cancelMeal()">${esc(t('cancel'))}</button>
     </div></div>`;
 }
@@ -198,7 +199,7 @@ function rerenderPicker() {
 // Opening and closing only change classes on the cards that already exist, so the browser can animate between states.
 // Rebuilding the list here would throw that away.
 function paintPicks() {
-  document.querySelectorAll('.pick-item').forEach((el) => {
+  document.querySelectorAll('[data-pick]').forEach((el) => {
     const open = el.dataset.pick === pickerState.openId;
     el.classList.toggle('open', open);
     el.querySelector('.pick-row').setAttribute('aria-expanded', String(open));
@@ -207,7 +208,7 @@ function paintPicks() {
 // Once an opened card has grown, scroll the list just enough to show its bottom edge.
 function revealPick() {
   const list = document.getElementById('pickerList');
-  const el = document.querySelector('.pick-item.open');
+  const el = document.querySelector('[data-pick].open');
   if (!list || !el) return;
   const box = list.getBoundingClientRect();
   const card = el.getBoundingClientRect();
@@ -216,7 +217,7 @@ function revealPick() {
 function togglePick(id) {
   pickerState.openId = pickerState.openId === id ? null : id;
   paintPicks();
-  if (pickerState.openId) setTimeout(revealPick, 420);
+  if (pickerState.openId) setTimeout(revealPick, motion('--pick-open', 460));
 }
 function closePick() { pickerState.openId = null; paintPicks(); }
 function pickServings(d) {
@@ -227,19 +228,25 @@ function filterPicker(v) { pickerState.filter = v; rerenderPicker(); }
 function chooseRecipe(id) { pickerState.recipeId = id; saveMeal(); }
 
 function selectDay(iso) { mealsDay = iso; mealForm = false; mealEditId = null; loadTab(); }
-function openAddMeal(slot) { startPicker(null); mealForm = slot; mealEditId = null; loadTab(); }
+// Opening a form redraws quietly: no dimming, and the form grows open when it arrives.
+function openAddMeal(slot) { startPicker(null); mealForm = slot; mealEditId = null; loadTab({ quiet: true }); }
 function editMeal(id) {
   const meal = (cache.meals || []).find((m) => m.id === id);
   startPicker(meal || null);
-  mealEditId = id; mealForm = false; loadTab();
+  mealEditId = id; mealForm = false; loadTab({ quiet: true });
 }
-// The form folds closed first, then the tab is redrawn. Redrawing straight away would remove it without any motion.
+// The key of the meal form that is open: 'meal-<slot>' for a new meal, 'meal-edit-<id>' for an edit, or ''.
+function mealFormKey() {
+  if (mealEditId) return 'meal-edit-' + mealEditId;
+  return typeof mealForm === 'string' && mealForm ? 'meal-' + mealForm : '';
+}
+// Cancel folds the form closed in place, then redraws the tab quietly. While it folds, the slot's
+// "Add a meal" button and empty note rise into place under it, so the card never goes blank.
 function cancelMeal() {
-  const wrap = document.querySelector('.meal-wrap');
-  if (wrap && wrap.classList.contains('closing')) return;
-  if (!wrap) { mealForm = false; mealEditId = null; loadTab(); return; }
-  // While the form is open, the slot shows no "Add a meal" button or empty note. Put those back under the
-  // form now, so they rise into place as the form folds, rather than appearing after the card has gone blank.
+  const key = mealFormKey();
+  const wrap = key ? document.querySelector(`[data-fold="${key}"]`) : null;
+  if (!wrap) { mealForm = false; mealEditId = null; loadTab({ quiet: true }); return; }
+  if (wrap.classList.contains('closing')) return;
   const card = wrap.closest('.card');
   const slot = typeof mealForm === 'string' ? mealForm : null;
   if (card && slot && !mealEditId) {
@@ -251,8 +258,7 @@ function cancelMeal() {
       + `<button class="btn small" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
     wrap.after(ph);
   }
-  wrap.classList.add('closing');
-  setTimeout(() => { mealForm = false; mealEditId = null; loadTab({ quiet: true }); }, 380);
+  foldClose(key, () => { mealForm = false; mealEditId = null; loadTab({ quiet: true }); });
 }
 
 async function saveMeal() {
@@ -283,21 +289,19 @@ async function saveMeal() {
   }
   if (error) return setProblem(error);
   mealsDay = date;
-  mealForm = false;
-  mealEditId = null;
-  setNotice(t('ok'));
-  await loadTab();
+  // The form folds closed, then the tab redraws with the saved meal and the confirmation.
+  foldClose(mealFormKey(), () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
 }
 
 async function setMealStatus(id, status) {
   const { error } = await sb.from('meals').update({ status }).eq('id', id);
   if (error) return setProblem(error);
-  await loadTab();
+  await loadTab({ quiet: true });
 }
 
 async function removeMeal(id) {
   if (!confirm(t('confirmDeleteMeal'))) return;
   const { error } = await sb.from('meals').delete().eq('id', id);
   if (error) return setProblem(error);
-  await loadTab();
+  await loadTab({ quiet: true });
 }

@@ -65,7 +65,7 @@ async function screenPlanner() {
   }
   html += '</div>';
 
-  if (cook && plannerDay) html += await plannerDayHtml(plannerDay, meals);
+  if (cook && plannerDay) html += `<div class="fold${foldEnter('day-' + plannerDay)}" data-fold="day-${plannerDay}">${await plannerDayHtml(plannerDay, meals)}</div>`;
   return html;
 }
 
@@ -96,7 +96,7 @@ async function plannerDayHtml(iso, meals) {
   }
   html += '</div>';
 
-  if (plannerRecipeId) html += await plannerRecipeHtml(plannerRecipeId);
+  if (plannerRecipeId) html += `<div class="fold${foldEnter('precipe-' + plannerRecipeId)}" data-fold="precipe-${plannerRecipeId}">${await plannerRecipeHtml(plannerRecipeId)}</div>`;
   return html;
 }
 
@@ -127,11 +127,15 @@ async function plannerRecipeHtml(id) {
 
 function moveWeek(d) { plannerWeek += d; loadTab(); }
 
-// Cooks: open a day below the week, or close it.
-function openPlannerDay(iso) { plannerDay = iso; plannerRecipeId = null; loadTab(); }
-function closePlannerDay() { plannerDay = null; plannerRecipeId = null; loadTab(); }
-function openPlannerRecipe(id) { plannerRecipeId = id; loadTab(); }
-function closePlannerRecipe() { plannerRecipeId = null; loadTab(); }
+// Cooks: open a day below the week, or close it. Opening redraws quietly and the day grows open; closing folds it away first.
+function openPlannerDay(iso) { plannerDay = iso; plannerRecipeId = null; loadTab({ quiet: true }); }
+function closePlannerDay() {
+  foldClose(plannerDay ? 'day-' + plannerDay : '', () => { plannerDay = null; plannerRecipeId = null; loadTab({ quiet: true }); });
+}
+function openPlannerRecipe(id) { plannerRecipeId = id; loadTab({ quiet: true }); }
+function closePlannerRecipe() {
+  foldClose(plannerRecipeId ? 'precipe-' + plannerRecipeId : '', () => { plannerRecipeId = null; loadTab({ quiet: true }); });
+}
 
 // Opens the Meals tab on a given day, ready to add or edit meals.
 async function openMealsOn(iso) {

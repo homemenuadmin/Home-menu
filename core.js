@@ -32,6 +32,44 @@ function screenClass(key) {
   return enter ? ' enter' : '';
 }
 
+// ---------------------------------------------------------------
+// Motion. Timings live in the CSS variables (styles-home.css), so each one is set in one place.
+// With "reduce motion" on, everything reads as 0 and the end state is shown straight away.
+// ---------------------------------------------------------------
+function motion(name, fallback) {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (raw.endsWith('ms')) return parseFloat(raw);
+  if (raw.endsWith('s')) return parseFloat(raw) * 1000;
+  return fallback;
+}
+
+// Folds (forms and details that open in place). foldEnter gives the entrance once, the first time a form is shown.
+// A refresh that redraws it later gets no entrance, so nothing replays.
+const shownFolds = new Set();
+function foldEnter(key) {
+  if (shownFolds.has(key)) return '';
+  shownFolds.add(key);
+  return ' enter';
+}
+// Folds the form closed in place, then runs done (which redraws without it).
+function foldClose(key, done) {
+  const el = document.querySelector(`[data-fold="${key}"]`);
+  if (!el) { shownFolds.delete(key); return done(); }
+  if (el.classList.contains('closing')) return;
+  el.classList.add('closing');
+  setTimeout(() => { shownFolds.delete(key); done(); }, motion('--pick-close', 380));
+}
+
+// Keeps where the user was scrolled through a redraw: the page, and any list with data-keep-scroll.
+function captureScroll() {
+  return { page: window.scrollY, lists: [...document.querySelectorAll('[data-keep-scroll]')].map((e) => e.scrollTop) };
+}
+function restoreScroll(s) {
+  window.scrollTo(0, s.page);
+  document.querySelectorAll('[data-keep-scroll]').forEach((e, i) => { if (s.lists[i] !== undefined) e.scrollTop = s.lists[i]; });
+}
+
 const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nameOf = (en, ar) => (lang === 'ar' && ar) ? ar : (en || ar || '');
@@ -64,7 +102,7 @@ async function setLang(l) {
   if (lang === l) return;
   const app = document.getElementById('app');
   if (app) app.classList.add('switching');
-  await new Promise((r) => setTimeout(r, 180));
+  await new Promise((r) => setTimeout(r, motion('--lang-ms', 180)));
   lang = l; applyLang(); render();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const el = document.getElementById('app');
@@ -171,6 +209,7 @@ function render() {
   if (drawerOpen) void nav.offsetWidth;
   nav.classList.toggle('open', drawerOpen);
   nav.querySelectorAll('.drawer-item').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const keepScroll = captureScroll();
   app.innerHTML = `
     <div class="top">
       <button class="icon-btn" onclick="openDrawer()" aria-label="${esc(t('menu'))}" aria-expanded="${drawerOpen}">${MENU_ICON}</button>
@@ -183,6 +222,7 @@ function render() {
     ${messages()}
     <div id="screen" class="${screenClass('main:' + tab)}${screenBusy ? ' busy' : ''}">${cache.screenHtml || ''}</div>
     ${tourHtml()}`;
+  restoreScroll(keepScroll);
   // The family Home sets up its greeting and meals sheet once the screen is in place.
   if (tab === 'home') setupHome(cache.playIntro);
 }
@@ -209,8 +249,18 @@ function drawerHtml() {
     </aside>`;
 }
 
-function openDrawer() { drawerOpen = true; render(); }
-function closeDrawer() { drawerOpen = false; render(); }
+// The side menu only changes its own classes, so the screen behind it is not redrawn.
+function openDrawer() { setDrawer(true); }
+function closeDrawer() { setDrawer(false); }
+function setDrawer(open) {
+  drawerOpen = open;
+  const nav = document.getElementById('nav');
+  if (!nav || nav.hidden) return render();
+  if (open) void nav.offsetWidth;   // read the closed position first, so the slide plays
+  nav.classList.toggle('open', open);
+  const btn = document.querySelector('.icon-btn');
+  if (btn) btn.setAttribute('aria-expanded', String(open));
+}
 
 // ---------------------------------------------------------------
 // Sign in and households
@@ -372,6 +422,60 @@ async function loadTab(opts = {}) {
   screenBusy = false;
   cache.screenTab = tab;
   render();
+  ensureLive();
+}
+
+// ---------------------------------------------------------------
+// Live updates: when anyone in the household changes something, the open screen refreshes by itself.
+// The app listens to the household's tables (the database only sends rows the user may see) and reloads
+// the screen quietly. It waits while someone is typing or a fold is closing, so nothing is lost or jumps.
+// ---------------------------------------------------------------
+const LIVE_TABLES = ['meals', 'pantry_items', 'recipes', 'recipe_ingredients', 'rules', 'household_members', 'favorites', 'households'];
+let liveChannel = null;
+let liveHousehold = null;
+let liveTimer = null;
+let liveVisibilityOn = false;
+
+function ensureLive() {
+  if (!hh || !session) return stopLive();
+  if (liveChannel && liveHousehold === hh.id) return;
+  stopLive();
+  liveHousehold = hh.id;
+  liveChannel = sb.channel('household-' + hh.id);
+  for (const table of LIVE_TABLES) {
+    liveChannel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
+  }
+  liveChannel.subscribe();
+  if (!liveVisibilityOn) {
+    liveVisibilityOn = true;
+    // Coming back to the app (from another app, or after the screen was locked) brings it up to date.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleRefresh(); });
+  }
+}
+function stopLive() {
+  if (liveChannel) { try { sb.removeChannel(liveChannel); } catch (e) {} }
+  liveChannel = null;
+  liveHousehold = null;
+  clearTimeout(liveTimer);
+}
+function scheduleRefresh() {
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(refreshNow, 300);
+}
+function refreshNow() {
+  if (!hh || !session) return;
+  const el = document.activeElement;
+  if (el && el.matches && el.matches('input, textarea, select')) {
+    // Someone is typing: try again once they leave the field.
+    el.addEventListener('blur', () => setTimeout(scheduleRefresh, 250), { once: true });
+    return;
+  }
+  // Wait for a load in progress, a fold closing, or the intro on Home to finish.
+  if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded)) {
+    liveTimer = setTimeout(refreshNow, 200);
+    return;
+  }
+  loadTab({ quiet: true });
 }
 
 // Soft placeholder shapes shown while a new screen loads (instead of a blank page with text).

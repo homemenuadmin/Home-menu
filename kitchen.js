@@ -38,7 +38,7 @@ async function screenKitchen() {
 
     if (editable) {
       if (itemForm === loc) {
-        html += `<div class="item-form">
+        html += `<div class="fold${foldEnter('item-' + loc)}" data-fold="item-${loc}"><div class="item-form">
           <h3 style="margin-top:0">${esc(t('addItem'))} · ${esc(t(loc))}</h3>
           <label>${esc(t('itemName'))}</label><input id="iname">
           <label>${esc(t('itemNameAr'))}</label><input id="iname_ar">
@@ -47,7 +47,7 @@ async function screenKitchen() {
           <select id="ilevel">${LEVELS.map((l) => `<option value="${l}">${esc(t(l))}</option>`).join('')}</select>
           <button class="btn" onclick="saveItem()">${esc(t('save'))}</button>
           <button class="btn secondary" onclick="toggleItemForm(false)">${esc(t('cancel'))}</button>
-        </div>`;
+        </div></div>`;
       } else {
         html += `<button class="btn small" onclick="toggleItemForm('${loc}')">${esc(t('addItem'))}</button>`;
       }
@@ -57,8 +57,12 @@ async function screenKitchen() {
   return html;
 }
 
-// Opens the add form for one location (or closes it when false is passed).
-async function toggleItemForm(loc) { itemForm = loc || false; await loadTab(); }
+// Opens the add form for one location (it grows open), or closes it with a fold when false is passed.
+function toggleItemForm(loc) {
+  if (loc) { itemForm = loc; return loadTab({ quiet: true }); }
+  if (!itemForm) return;
+  foldClose('item-' + itemForm, () => { itemForm = false; loadTab({ quiet: true }); });
+}
 
 async function saveItem() {
   const name = document.getElementById('iname').value.trim();
@@ -74,9 +78,7 @@ async function saveItem() {
     updated_by: session.user.id,
   });
   if (error) return setProblem(error);
-  itemForm = false;
-  setNotice(t('ok'));
-  await loadTab();
+  foldClose('item-' + itemForm, () => { itemForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
 }
 
 async function setLevel(id, level) {
@@ -84,12 +86,12 @@ async function setLevel(id, level) {
     .update({ level, updated_by: session.user.id, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return setProblem(error);
-  await loadTab();
+  await loadTab({ quiet: true });
 }
 
 async function removeItem(id) {
   if (!confirm(t('confirmDeleteItem'))) return;
   const { error } = await sb.from('pantry_items').delete().eq('id', id);
   if (error) return setProblem(error);
-  await loadTab();
+  await loadTab({ quiet: true });
 }

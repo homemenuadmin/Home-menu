@@ -21,7 +21,7 @@ async function start() {
       await loadHousehold();
       if (hh) await loadTab(); else render();
     }
-    if (event === 'SIGNED_OUT') { session = null; hh = null; render(); }
+    if (event === 'SIGNED_OUT') { session = null; hh = null; stopLive(); render(); }
   });
 }
 start();

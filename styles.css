@@ -45,11 +45,11 @@
               display:inline-flex; align-items:center; justify-content:center; padding:0; cursor:pointer; }
   .icon-btn svg { width:28px; height:28px; }
   /* Motion: the side menu slides and fades in and out, and each new screen eases in. */
-  .nav { visibility:hidden; transition:visibility 0s linear .3s; }
+  .nav { visibility:hidden; transition:visibility 0s linear var(--drawer-ms); }
   .nav.open { visibility:visible; transition:none; }
-  .nav .scrim { opacity:0; transition:opacity .25s ease; }
+  .nav .scrim { opacity:0; transition:opacity var(--scrim-ms) ease; }
   .nav.open .scrim { opacity:1; }
-  .nav .drawer { transform:translateX(-102%); transition:transform .3s cubic-bezier(.2,.7,.2,1); }
+  .nav .drawer { transform:translateX(-102%); transition:transform var(--drawer-ms) cubic-bezier(.2,.7,.2,1); }
   html[dir=rtl] .nav .drawer { transform:translateX(102%); }
   .nav.open .drawer { transform:none; }
   @keyframes screen-in { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

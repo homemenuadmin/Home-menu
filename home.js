@@ -147,15 +147,18 @@ function setupHome(intro) {
 
   setTy(ty0);
   markIntroPlayed();
+  // The timings come from the CSS variables (styles-home.css), so they are set in one place.
+  const glideMs = motion('--intro-glide-ms', 1500);
   setTimeout(() => {
-    glideSheet(ty0, 0, 1500, setTy, () => { homeLanded = true; });
-  }, 1900);
-  setTimeout(() => sheet.classList.add('revealed'), 2500);
+    glideSheet(ty0, 0, glideMs, setTy, () => { homeLanded = true; });
+  }, motion('--intro-hold-ms', 1900));
+  setTimeout(() => sheet.classList.add('revealed'), motion('--intro-sheet-ms', 2500));
 }
 
-// Moves the sheet from one height to another with an eased curve.
+// Moves the sheet from one height to another with an eased curve. With no time to move in (reduce motion), it jumps to the end.
 function glideSheet(from, to, ms, onFrame, done) {
   const ease = (x) => (x < 0.5 ? 16 * x ** 5 : 1 - (-2 * x + 2) ** 5 / 2);
+  if (!ms) { onFrame(to); if (done) done(); return; }
   const t0 = performance.now();
   const step = (now) => {
     const k = Math.min(1, (now - t0) / ms);
