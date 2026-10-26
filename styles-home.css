@@ -383,4 +383,17 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 @keyframes mealOpen { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .meal-wrap, .meal-wrap.closing, .meal-placeholder { animation: none; transition-duration: 1ms; } }
 .meal-placeholder { animation: placeFade var(--pick-close) ease; }
+
+/* Start-up splash, shown until the first screen is ready. It fades in after a short pause,
+   so a quick load never flashes it. */
+.splash { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  background: var(--bg, #FFF8F0); animation: splashIn .6s ease .25s both; }
+.splash-mark { display: flex; gap: 10px; align-items: flex-end; height: 40px; }
+.splash-mark span { width: 14px; height: 14px; border-radius: 50%; background: var(--teal, #0F766E); animation: splashBob 1.2s ease-in-out infinite; }
+.splash-mark span:nth-child(2) { background: #F4C542; animation-delay: .15s; }
+.splash-mark span:nth-child(3) { background: var(--coral, #C2410C); animation-delay: .3s; }
+.splash-name { font-size: 18px; font-weight: 600; color: var(--ink, #1F2937); letter-spacing: .2px; }
+@keyframes splashIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes splashBob { 0%, 100% { transform: translateY(0); opacity: .55; } 50% { transform: translateY(-10px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .splash, .splash-mark span { animation: none; } }
 @keyframes placeFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
