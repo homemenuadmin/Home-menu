@@ -330,3 +330,28 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
   .home-meal { transition: none !important; opacity: 1; transform: none; filter: none; }
   .home-stage.arriving * { animation: none !important; }
 }
+
+/* Meal picker: a scrollable list of recipes. Tap one to open it in place; its details and Add button show under it. */
+.picker-search { width: 100%; margin: 6px 0 10px; padding: 11px 14px; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; font: inherit; font-size: 16px; background: var(--bg, #FFF8F0); color: var(--ink, #1F2937); }
+.picker-list { max-height: 420px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; overscroll-behavior: contain; }
+.pick-item { border: 2px solid var(--line, #E5E7EB); border-radius: 18px; background: #fff; margin: 10px 0; overflow: hidden; transition: border-color .2s ease; }
+.pick-item.open { border-color: var(--teal, #0F766E); }
+.pick-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; background: none; border: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.pick-thumb { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; font-weight: 700; color: var(--ink, #1F2937); }
+.pick-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pick-meta strong { font-size: 17px; }
+.pick-meta small { color: var(--muted, #4B5563); font-size: 13px; }
+.pick-chev { color: var(--muted, #4B5563); font-size: 18px; transition: transform .25s ease; }
+.pick-item.open .pick-chev { transform: rotate(180deg); }
+.pick-details { display: none; padding: 0 12px 14px; }
+.pick-item.open .pick-details { display: block; animation: pickOpen .3s ease; }
+@keyframes pickOpen { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.pick-ings { margin: 0; font-size: 15px; }
+.pick-ings li { padding: 6px 0; border-bottom: 1px dashed var(--line, #E5E7EB); }
+.pick-ings .row { display: flex; justify-content: space-between; gap: 10px; }
+.pick-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.pick-actions .btn { flex: 1; margin: 0; }
+.stepper { display: flex; align-items: center; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; overflow: hidden; }
+.stepper button { width: 42px; height: 42px; border: 0; background: var(--bg, #FFF8F0); font-size: 20px; color: var(--ink, #1F2937); cursor: pointer; }
+.stepper output { min-width: 48px; text-align: center; font-size: 16px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .pick-item.open .pick-details { animation: none; } .pick-chev { transition: none; } }
