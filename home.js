@@ -69,7 +69,6 @@ function familyHomeHtml(meals, low, greeting, niceDate) {
       <div class="home-cue">${esc(t('todayMeals'))}</div>
     </div>
     <div class="home-sheet" id="homeSheet">
-      <div class="home-grab"></div>
       <h2 class="home-sheet-title">${esc(t('todayMeals'))}</h2>
       ${list}
       <button class="btn home-picker" onclick="go('today')">${esc(t('goToPicker'))}</button>
