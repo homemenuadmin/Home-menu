@@ -292,3 +292,9 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .top-actions { flex-wrap:nowrap; gap:6px; }
 .top-actions .role-toggle { font-size:15px; padding:6px 10px; min-height:44px; }
 .top-actions .btn.small { min-height:44px; font-size:16px; padding:6px 12px; }
+
+/* Cook's planner: the open day, and its meals and recipe below the week. */
+.plan-day.picked { outline: 2px solid var(--accent, #0F766E); outline-offset: -2px; }
+.planner-day-card { margin-top: 12px; }
+.planner-meal { border-top: 1px solid rgba(0,0,0,0.08); padding: 10px 0; }
+.planner-meal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

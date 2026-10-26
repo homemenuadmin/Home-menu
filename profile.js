@@ -55,7 +55,9 @@ async function screenProfile() {
     <div class="card">
       <div class="muted">${esc(t('yourRole'))}</div>
       <div><span class="tag">${esc(t('role_' + hh.role))}</span>${owner}</div>
-      <p>${esc(roleNote())}</p>
+      <div class="setup-options" style="margin-top:10px">${[['helper', 'role_helper'], ['member', 'role_member']].map(([v, k]) =>
+        `<button class="${hh.role === v ? 'btn' : 'btn secondary'} small" onclick="changeMyRole('${v}')">${esc(t(k))}</button>`).join('')}</div>
+      <p>${esc(t(hh.role === 'helper' ? 'helperNote' : 'memberNote'))}</p>
       ${hh.owner ? `<p class="muted">${esc(t('ownerNote'))}</p>` : ''}
     </div>
     <h2>${esc(t('rules'))}</h2>
@@ -66,6 +68,19 @@ async function screenProfile() {
 }
 
 async function toggleProfileForm(on) { profileForm = on; await loadTab(); }
+
+// Changes your own role (Cook or Family member). The layout follows it.
+async function changeMyRole(role) {
+  if (role === hh.role) return;
+  const { error } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: role });
+  if (error) return setProblem(error);
+  hh.role = role;
+  viewRole = null;
+  problem = '';
+  notice = t('roleChanged');
+  if (!ROLE_TABS[role].includes(tab) && tab !== 'profile') tab = 'home';
+  await loadTab();
+}
 
 // Makes a square, smaller JPEG of the chosen photo, so uploads stay small.
 function squareImage(file, size) {

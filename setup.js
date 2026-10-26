@@ -84,7 +84,7 @@ function setupStepHtml(step) {
   }
   if (step === 'cook') {
     return `<h2 style="margin-top:0">${esc(t('cookQ'))}</h2>
-      ${setupOptions('cook_answer', [['cook', t('cookYes')], ['not_cook', t('cookNo')], ['hybrid', t('cookSometimes')]], setupData.cook_answer)}
+      ${setupOptions('cook_answer', [['cook', t('cookYes')], ['not_cook', t('cookNo')]], setupData.cook_answer)}
       <p class="muted">${esc(t('cookNote'))}</p>`;
   }
   if (step === 'meals') {
