@@ -373,3 +373,12 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .stepper button { width: 42px; height: 42px; border: 0; background: var(--bg, #FFF8F0); font-size: 20px; color: var(--ink, #1F2937); cursor: pointer; }
 .stepper output { min-width: 48px; text-align: center; font-size: 16px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .pick-item, .pick-item *, .pick-item *::before { transition-duration: 1ms !important; transition-delay: 0ms !important; } }
+
+/* The add-a-meal panel. It grows open when it appears, and folds closed on Cancel before it is removed.
+   Height changes through grid rows, so the panel takes its real height. */
+.meal-wrap { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows var(--pick-close) var(--pick-io), opacity var(--pick-close) ease; }
+.meal-wrap > .meal-form { min-height: 0; overflow: hidden; }
+.meal-wrap { animation: mealOpen var(--pick-open) var(--pick-out); }
+.meal-wrap.closing { grid-template-rows: 0fr; opacity: 0; animation: none; }
+@keyframes mealOpen { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .meal-wrap, .meal-wrap.closing { animation: none; transition-duration: 1ms; } }

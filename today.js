@@ -139,13 +139,13 @@ function startPicker(existing) {
 function mealFormHtml(existing, slotDefault) {
   const slot = existing ? existing.meal_slot : slotDefault;
   const hasRecipes = (cache.pickerRecipes || []).length > 0;
-  return `<div class="meal-form">
+  return `<div class="meal-wrap"><div class="meal-form">
       <h3 style="margin-top:0">${esc(existing ? t('editMeal') : t('addMeal'))} · ${esc(t(slot))}</h3>
       ${hasRecipes ? '' : `<p class="muted">${esc(t('addRecipeFirst'))}</p>`}
       <input class="picker-search" type="search" value="${esc(pickerState.filter)}" placeholder="${esc(t('search'))}" aria-label="${esc(t('search'))}" oninput="filterPicker(this.value)">
       <div class="picker-list" id="pickerList">${pickerListHtml()}</div>
       <button class="btn secondary" onclick="cancelMeal()">${esc(t('cancel'))}</button>
-    </div>`;
+    </div></div>`;
 }
 
 function pickerListHtml() {
@@ -233,7 +233,14 @@ function editMeal(id) {
   startPicker(meal || null);
   mealEditId = id; mealForm = false; loadTab();
 }
-function cancelMeal() { mealForm = false; mealEditId = null; loadTab(); }
+// The form folds closed first, then the tab is redrawn. Redrawing straight away would remove it without any motion.
+function cancelMeal() {
+  const wrap = document.querySelector('.meal-wrap');
+  if (wrap && wrap.classList.contains('closing')) return;
+  if (!wrap) { mealForm = false; mealEditId = null; loadTab(); return; }
+  wrap.classList.add('closing');
+  setTimeout(() => { mealForm = false; mealEditId = null; loadTab(); }, 380);
+}
 
 async function saveMeal() {
   // The meal goes on the day chosen at the top of the screen.
