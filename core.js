@@ -36,12 +36,20 @@ const t = (k) => (TEXT[lang] && TEXT[lang][k]) || TEXT.en[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nameOf = (en, ar) => (lang === 'ar' && ar) ? ar : (en || ar || '');
 // Two roles: 'helper' is the cook, 'member' is a family member. The owner is a flag on top of a role.
+// viewRole is for testing only: it changes the layout and what the screens offer, but not the stored role.
+let viewRole = null;
+function activeRole() { return viewRole || (hh ? hh.role : 'member'); }
+// The tabs each role sees. Settings is always there too, added in drawerHtml.
+const ROLE_TABS = {
+  member: ['home', 'today', 'recipes', 'kitchen'],
+  helper: ['home', 'planner', 'kitchen'],
+};
 const can = {
-  stock: () => !!hh && hh.role === 'helper',
-  cook: () => !!hh && hh.role === 'helper',
-  rules: () => !!hh && (hh.role === 'member' || hh.owner),
-  approve: () => !!hh && (hh.role === 'member' || hh.owner),
-  suggest: () => !!hh,
+  stock: () => !!hh && activeRole() === 'helper',     // cooks change the kitchen stock
+  cook: () => !!hh && activeRole() === 'helper',      // cooks mark meals as cooked
+  rules: () => !!hh,                                  // everyone sets rules
+  approve: () => !!hh && activeRole() === 'member',   // family members approve meals
+  suggest: () => !!hh && activeRole() === 'member',   // family members add and edit meals
   people: () => !!hh && hh.owner,
   deleteMeal: () => !!hh && hh.owner,
 };
@@ -66,29 +74,30 @@ async function setLang(l) {
 function langButton() {
   return `<button class="btn secondary small" onclick="setLang('${lang === 'en' ? 'ar' : 'en'}')">${t('langButton')}</button>`;
 }
-// The signed-in person's own role, shown as a menu in the app's style: Cook or Family member.
+// The view switcher in the top bar (testing only): shows the layout for Cook or Family member.
+// It does not change the stored role; that is set in Settings.
 function roleButton() {
   const options = [['helper', 'role_helper'], ['member', 'role_member']];
+  const current = activeRole();
   const list = roleMenuOpen
     ? `<div class="role-scrim" onclick="toggleRoleMenu()"></div>
-       <div class="role-list" role="listbox" aria-label="${esc(t('switchRole'))}">
-         ${options.map(([v, k]) => `<button class="role-opt ${hh.role === v ? 'on' : ''}" role="option" aria-selected="${hh.role === v}" onclick="switchMyRole('${v}')">${esc(t(k))}</button>`).join('')}
+       <div class="role-list" role="listbox" aria-label="${esc(t('switchView'))}">
+         ${options.map(([v, k]) => `<button class="role-opt ${current === v ? 'on' : ''}" role="option" aria-selected="${current === v}" onclick="switchView('${v}')">${esc(t(k))}</button>`).join('')}
        </div>`
     : '';
   return `<div class="role-menu">
-    <button class="role-toggle" onclick="toggleRoleMenu()" aria-haspopup="listbox" aria-expanded="${roleMenuOpen}" title="${esc(t('switchRole'))}">${esc(t('role_' + hh.role))} <span class="caret" aria-hidden="true">▾</span></button>
+    <button class="role-toggle" onclick="toggleRoleMenu()" aria-haspopup="listbox" aria-expanded="${roleMenuOpen}" title="${esc(t('switchView'))}">${esc(t('role_' + current))} <span class="caret" aria-hidden="true">▾</span></button>
     ${list}
   </div>`;
 }
 function toggleRoleMenu() { roleMenuOpen = !roleMenuOpen; render(); }
-async function switchMyRole(next) {
+async function switchView(next) {
   roleMenuOpen = false;
-  if (next === hh.role) return render();
-  const { error } = await sb.rpc('set_my_role', { p_household: hh.id, p_role: next });
-  if (error) return setProblem(error);
-  hh.role = next;
+  viewRole = next === hh.role ? null : next;
   problem = '';
-  notice = t('roleChanged');
+  // Leave a tab the new view does not have.
+  if (!ROLE_TABS[activeRole()].includes(tab) && tab !== 'profile') tab = 'home';
+  mealForm = false; mealEditId = null; openRecipeId = null;
   await loadTab();
 }
 function messages() {
@@ -180,11 +189,11 @@ function render() {
 const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
 
 // The menu is rebuilt when its contents change, including the language, so its labels stay right.
-function drawerKey() { return [hh.id, hh.name, can.people(), lang].join('|'); }
+function drawerKey() { return [hh.id, hh.name, can.people(), activeRole(), lang].join('|'); }
 
 function drawerHtml() {
-  const items = ['home', 'today', 'planner', 'kitchen', 'recipes'];
-  items.push('profile');
+  // Each role sees its own tabs; Settings is there for everyone.
+  const items = [...ROLE_TABS[activeRole()], 'profile'];
   return `
     <div class="scrim" onclick="closeDrawer()"></div>
     <aside class="drawer" role="dialog" aria-label="${esc(t('menu'))}">
@@ -252,7 +261,7 @@ async function signOut() {
   }
   testPassword = null;
   await sb.auth.signOut();
-  session = null; hh = null; cache = {}; notice = ''; problem = '';
+  session = null; hh = null; cache = {}; notice = ''; problem = ''; viewRole = null;
   needsSetup = false; setupData = null; setupStep = 0;
   showIntro = true; tourStep = null; tourList = [];
   render();
@@ -328,10 +337,11 @@ async function createHousehold() {
 // Navigation
 // ---------------------------------------------------------------
 async function go(k) {
-  tab = k;
+  // Only the tabs this view has, plus Settings.
+  tab = (ROLE_TABS[activeRole()].includes(k) || k === 'profile') ? k : 'home';
   drawerOpen = false;
   notice = ''; problem = '';
-  mealForm = false; mealEditId = null; itemForm = false; ruleForm = false; openRecipeId = null;
+  mealForm = false; mealEditId = null; itemForm = false; ruleForm = false; openRecipeId = null; plannerDay = null; plannerRecipeId = null;
   await loadTab();
 }
 
@@ -369,5 +379,5 @@ function skeletonHtml() {
 }
 
 function roleNote() {
-  return hh.role === 'helper' ? t('helperNote') : t('memberNote');
+  return activeRole() === 'helper' ? t('helperNote') : t('memberNote');
 }
