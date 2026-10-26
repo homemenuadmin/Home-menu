@@ -256,7 +256,8 @@ function cancelMeal() {
     ph.className = 'meal-placeholder';
     ph.innerHTML = (hasItems ? '' : `<p class="muted">${esc(t('noMealsSlot'))}</p>`)
       + `<button class="btn small" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
-    wrap.after(ph);
+    // Above the form, so the note and button are in place from the first frame. The form folds away below them.
+    wrap.before(ph);
   }
   foldClose(key, () => { mealForm = false; mealEditId = null; loadTab({ quiet: true }); });
 }
