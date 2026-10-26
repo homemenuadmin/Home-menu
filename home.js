@@ -57,7 +57,7 @@ function familyHomeHtml(meals, low, greeting, niceDate) {
   });
   if (!list) list = `<p class="muted home-empty">${esc(t('noConfirmedToday'))}</p>`;
 
-  const intro = cache.playIntro ? ' intro' : '';
+  const intro = cache.playIntro ? ' arriving' : '';
   return `<div class="home-stage${intro}" id="homeStage">
     <div class="home-greet">
       <div class="home-blob"></div>

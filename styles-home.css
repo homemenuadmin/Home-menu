@@ -307,9 +307,9 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .home-date { font-size: 17px; color: var(--muted, #6B7673); }
 .home-hello { font-size: 42px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; margin: 8px 0 0; }
 .home-note { margin: 16px 0 0; font-size: 15px; line-height: 1.5; max-width: 300px; }
-.home-cue { position: absolute; left: 0; right: 0; bottom: 30px; text-align: center; font-size: 13px; color: var(--muted, #6B7673); opacity: calc(1 - var(--p) * 3); }
+.home-cue { position: absolute; left: 0; right: 0; bottom: 100px; text-align: center; font-size: 13px; color: var(--muted, #6B7673); opacity: calc(1 - var(--p) * 3); }
 .home-blob { position: absolute; right: -110px; top: 90px; width: 300px; height: 300px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 40% 40%, var(--accent-soft, #E0F4F1), transparent 70%);
+  background: radial-gradient(circle at 40% 40%, var(--teal-soft, #E0F7F2), transparent 70%);
   transform: translate3d(calc(var(--p) * 70px), calc(var(--p) * -40px), 0) scale(calc(1 + var(--p) * 0.25));
   opacity: calc(0.9 - var(--p) * 0.9); }
 .home-sheet { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: var(--bg, #FBF7F2); border-radius: 28px 28px 0 0;
@@ -322,12 +322,12 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .home-sheet.revealed .home-meal { opacity: 1; transform: none; filter: none; }
 .home-picker { width: 100%; margin: 8px 0 18px; }
 .home-empty { padding: 8px 4px; }
-.home-stage.intro .home-date { animation: homeFade .9s var(--ease) .3s both; }
-.home-stage.intro .home-hello { animation: homeRise 1s var(--ease) .45s both; }
-.home-stage.intro .home-note { animation: homeFade .9s var(--ease) .9s both; }
+.home-stage.arriving .home-date { animation: homeFade .9s var(--ease) .3s both; }
+.home-stage.arriving .home-hello { animation: homeRise 1s var(--ease) .45s both; }
+.home-stage.arriving .home-note { animation: homeFade .9s var(--ease) .9s both; }
 @keyframes homeFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes homeRise { from { opacity: 0; transform: translate3d(0, 18px, 0); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .home-meal { transition: none !important; opacity: 1; transform: none; filter: none; }
-  .home-stage.intro * { animation: none !important; }
+  .home-stage.arriving * { animation: none !important; }
 }
