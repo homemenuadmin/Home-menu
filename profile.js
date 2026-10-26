@@ -25,17 +25,10 @@ async function screenProfile() {
     avatar = signed ? signed.signedUrl : '';
   }
 
+  cache.profileNick = nickname;
   let profileHtml;
   if (profileForm) {
-    profileHtml = `<div class="fold${foldEnter('profile')}" data-fold="profile"><div class="card">
-      <h2 style="margin-top:0">${esc(t('editProfile'))}</h2>
-      <label>${esc(t('nickname'))}</label>
-      <input id="pnick" value="${esc(nickname)}" maxlength="30" autocomplete="nickname">
-      <label>${esc(t('profilePhoto'))}</label>
-      <input id="pphoto" type="file" accept="image/*">
-      <button class="btn" onclick="saveProfile()">${esc(t('save'))}</button>
-      <button class="btn secondary" onclick="toggleProfileForm(false)">${esc(t('cancel'))}</button>
-    </div></div>`;
+    profileHtml = profileFormHtml();
   } else {
     const picture = avatar
       ? `<img class="avatar" src="${esc(avatar)}" alt="">`
@@ -67,10 +60,32 @@ async function screenProfile() {
     <button class="btn danger" onclick="signOut()">${esc(t('signOut'))}</button>`;
 }
 
-// Opens the nickname and picture form (it grows open), or folds it closed when off.
+// The nickname and picture form. It takes the place of the profile card.
+function profileFormHtml() {
+  const nickname = cache.profileNick || '';
+  return `<div class="fold${foldEnter('profile')}" data-fold="profile"><div class="card">
+      <h2 style="margin-top:0">${esc(t('editProfile'))}</h2>
+      <label>${esc(t('nickname'))}</label>
+      <input id="pnick" value="${esc(nickname)}" maxlength="30" autocomplete="nickname">
+      <label>${esc(t('profilePhoto'))}</label>
+      <input id="pphoto" type="file" accept="image/*">
+      <button class="btn" onclick="saveProfile()">${esc(t('save'))}</button>
+      <button class="btn secondary" onclick="toggleProfileForm(false)">${esc(t('cancel'))}</button>
+    </div></div>`;
+}
+
+// Opens the nickname and picture form in place, at once, or folds it closed when off.
 function toggleProfileForm(on) {
-  if (on) { profileForm = true; return loadTab({ quiet: true }); }
-  foldClose('profile', () => { profileForm = false; loadTab({ quiet: true }); });
+  if (on) {
+    profileForm = true;
+    const opened = openFormNow('profile', () => {
+      const card = document.querySelector('.profile-view');
+      return card ? { els: [card] } : null;
+    }, profileFormHtml());
+    if (!opened) loadTab({ quiet: true });
+    return;
+  }
+  closeFormNow('profile', () => { profileForm = false; });
 }
 
 // Changes your own role (Cook or Family member). The layout follows it.
@@ -120,5 +135,5 @@ async function saveProfile() {
   }
   const { error } = await sb.from('profiles').update(update).eq('id', session.user.id);
   if (error) return setProblem(error);
-  foldClose('profile', () => { profileForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
+  closeFormNow('profile', () => { profileForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }

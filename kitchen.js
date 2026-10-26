@@ -24,8 +24,8 @@ async function screenKitchen() {
   // Every section always shows, so an empty place can be filled straight away.
   for (const loc of LOCATIONS) {
     const list = cache.items.filter((i) => i.location === loc);
-    html += `<h2>${esc(t(loc))} <span class="tag">${list.length}</span></h2><div class="card">`;
-    if (!list.length) html += `<p class="muted">${esc(t('emptySection'))}</p>`;
+    html += `<h2>${esc(t(loc))} <span class="tag">${list.length}</span></h2><div class="card" data-loc="${loc}">`;
+    if (!list.length) html += `<p class="muted empty-note">${esc(t('emptySection'))}</p>`;
     else html += '<ul class="clean">';
     for (const it of list) {
       const levels = editable
@@ -37,8 +37,17 @@ async function screenKitchen() {
     if (list.length) html += '</ul>';
 
     if (editable) {
-      if (itemForm === loc) {
-        html += `<div class="fold${foldEnter('item-' + loc)}" data-fold="item-${loc}"><div class="item-form">
+      if (itemForm === loc) html += itemFormHtml(loc);
+      else html += `<button class="btn small add-slot" onclick="toggleItemForm('${loc}')">${esc(t('addItem'))}</button>`;
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// The add-item form for one location. It takes the place of the add button.
+function itemFormHtml(loc) {
+  return `<div class="fold${foldEnter('item-' + loc)}" data-fold="item-${loc}"><div class="item-form">
           <h3 style="margin-top:0">${esc(t('addItem'))} · ${esc(t(loc))}</h3>
           <label>${esc(t('itemName'))}</label><input id="iname">
           <label>${esc(t('itemNameAr'))}</label><input id="iname_ar">
@@ -48,20 +57,23 @@ async function screenKitchen() {
           <button class="btn" onclick="saveItem()">${esc(t('save'))}</button>
           <button class="btn secondary" onclick="toggleItemForm(false)">${esc(t('cancel'))}</button>
         </div></div>`;
-      } else {
-        html += `<button class="btn small" onclick="toggleItemForm('${loc}')">${esc(t('addItem'))}</button>`;
-      }
-    }
-    html += '</div>';
-  }
-  return html;
 }
 
-// Opens the add form for one location (it grows open), or closes it with a fold when false is passed.
+// Opens the add form for one location in place, at once. Or closes it when false is passed.
 function toggleItemForm(loc) {
-  if (loc) { itemForm = loc; return loadTab({ quiet: true }); }
+  if (loc) {
+    itemForm = loc;
+    const opened = openFormNow('item-' + loc, () => {
+      const card = document.querySelector(`[data-loc="${loc}"]`);
+      const btn = card && card.querySelector('.add-slot');
+      if (!btn) return null;
+      return { els: [btn], hide: [card.querySelector('.empty-note')].filter(Boolean) };
+    }, itemFormHtml(loc));
+    if (!opened) loadTab({ quiet: true });
+    return;
+  }
   if (!itemForm) return;
-  foldClose('item-' + itemForm, () => { itemForm = false; loadTab({ quiet: true }); });
+  closeFormNow('item-' + itemForm, () => { itemForm = false; });
 }
 
 async function saveItem() {
@@ -78,7 +90,7 @@ async function saveItem() {
     updated_by: session.user.id,
   });
   if (error) return setProblem(error);
-  foldClose('item-' + itemForm, () => { itemForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
+  closeFormNow('item-' + itemForm, () => { itemForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }
 
 async function setLevel(id, level) {

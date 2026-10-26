@@ -61,6 +61,63 @@ function foldClose(key, done) {
   setTimeout(() => { shownFolds.delete(key); done(); }, motion('--pick-close', 380));
 }
 
+// Forms that open at once. Opening puts the form in place of the content it needs room for, using the data already
+// on screen, so there is no wait for the network. Cancel puts that content back below the form, folds the form away,
+// then runs reset(). A quiet reload from the network happens only when no content was put back (or after a save).
+const openForms = {};   // form key -> { html: the content the form replaced, hidden: elements hidden while it is open }
+// Keeps the saved copy of the screen in step with what is on screen, so a later redraw shows the same thing.
+function syncScreenHtml() {
+  const screen = document.getElementById('screen');
+  if (!screen) return;
+  const copy = screen.cloneNode(true);
+  copy.querySelectorAll('.enter, .closing').forEach((n) => n.classList.remove('enter', 'closing'));
+  cache.screenHtml = copy.innerHTML;
+}
+// The element that holds a form: its fold wrapper, or the list item around it.
+function formBox(key) {
+  const wrap = document.querySelector(`[data-fold="${key}"]`);
+  if (!wrap) return null;
+  return wrap.parentElement && wrap.parentElement.tagName === 'LI' ? wrap.parentElement : wrap;
+}
+// Puts the form in place of what find() returns: { els, hide }. els are replaced; hide are hidden while the form is open.
+// Any other open form is put back first. Returns false if there is nothing to replace, so the caller can reload instead.
+function openFormNow(key, find, formHtml) {
+  closeOpenFormsNow(key);
+  const found = find();
+  if (!found || !found.els || !found.els.length) return false;
+  const hide = found.hide || [];
+  openForms[key] = { html: found.els.map((e) => e.outerHTML).join(''), hidden: hide };
+  hide.forEach((e) => e.classList.add('form-hidden'));
+  found.els[0].insertAdjacentHTML('beforebegin', formHtml);
+  found.els.forEach((e) => e.remove());
+  syncScreenHtml();
+  return true;
+}
+// Puts back, at once and without animation, any open form other than except.
+function closeOpenFormsNow(except) {
+  for (const key of Object.keys(openForms)) {
+    if (key === except) continue;
+    const rec = openForms[key];
+    rec.hidden.forEach((e) => e.classList.remove('form-hidden'));
+    const box = formBox(key);
+    if (box) { box.insertAdjacentHTML('afterend', rec.html); box.remove(); }
+    delete openForms[key];
+  }
+}
+// Closes a form: the content it replaced goes back below it, the form folds away, then reset() runs, then after()
+// (or a quiet reload, when nothing was put back).
+function closeFormNow(key, reset, after) {
+  const wrap = document.querySelector(`[data-fold="${key}"]`);
+  if (wrap && wrap.classList.contains('closing')) return;
+  const rec = openForms[key];
+  if (rec) { rec.hidden.forEach((e) => e.classList.remove('form-hidden')); delete openForms[key]; }
+  const box = formBox(key);
+  if (!box) { reset(); if (after) after(); else loadTab({ quiet: true }); return; }
+  const finish = () => { reset(); if (after) after(); else if (!rec) loadTab({ quiet: true }); };
+  if (rec) box.insertAdjacentHTML('afterend', rec.html);
+  foldClose(key, () => { box.remove(); syncScreenHtml(); finish(); });
+}
+
 // Keeps where the user was scrolled through a redraw: the page, and any list with data-keep-scroll.
 function captureScroll() {
   return { page: window.scrollY, lists: [...document.querySelectorAll('[data-keep-scroll]')].map((e) => e.scrollTop) };

@@ -25,8 +25,15 @@ async function screenRules() {
     html += '</ul></div>';
   }
   if (editable) {
-    if (ruleForm) {
-      html += `<div class="fold${foldEnter('rule')}" data-fold="rule"><div class="card"><h2 style="margin-top:0">${esc(t('addRule'))}</h2>
+    if (ruleForm) html += ruleFormHtml();
+    else html += `<button class="btn add-rule" onclick="toggleRuleForm(true)">${esc(t('addRule'))}</button>`;
+  }
+  return html;
+}
+
+// The add-rule form. It takes the place of the add button.
+function ruleFormHtml() {
+  return `<div class="fold${foldEnter('rule')}" data-fold="rule"><div class="card"><h2 style="margin-top:0">${esc(t('addRule'))}</h2>
         <label>&nbsp;</label>
         <select id="rkind"><option value="dont">${esc(t('dontLabel'))}</option><option value="do">${esc(t('doLabel'))}</option></select>
         <label>${esc(t('ruleText'))}</label><input id="rtext">
@@ -34,17 +41,20 @@ async function screenRules() {
         <label>${esc(t('ruleIngredient'))}</label><input id="rkey">
         <button class="btn" onclick="saveRule()">${esc(t('save'))}</button>
         <button class="btn secondary" onclick="toggleRuleForm(false)">${esc(t('cancel'))}</button></div></div>`;
-    } else {
-      html += `<button class="btn" onclick="toggleRuleForm(true)">${esc(t('addRule'))}</button>`;
-    }
-  }
-  return html;
 }
 
-// Opens the rule form (it grows open), or folds it closed when off.
+// Opens the rule form in place, at once, or folds it closed when off.
 function toggleRuleForm(on) {
-  if (on) { ruleForm = true; return loadTab({ quiet: true }); }
-  foldClose('rule', () => { ruleForm = false; loadTab({ quiet: true }); });
+  if (on) {
+    ruleForm = true;
+    const opened = openFormNow('rule', () => {
+      const btn = document.querySelector('.add-rule');
+      return btn ? { els: [btn] } : null;
+    }, ruleFormHtml());
+    if (!opened) loadTab({ quiet: true });
+    return;
+  }
+  closeFormNow('rule', () => { ruleForm = false; });
 }
 
 async function saveRule() {
@@ -60,7 +70,7 @@ async function saveRule() {
     created_by: session.user.id,
   });
   if (error) return setProblem(error);
-  foldClose('rule', () => { ruleForm = false; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
+  closeFormNow('rule', () => { ruleForm = false; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }
 
 async function removeRule(id) {

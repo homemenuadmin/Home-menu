@@ -75,11 +75,11 @@ async function screenToday() {
 
   for (const slot of SLOTS) {
     const list = onDay.filter((m) => m.meal_slot === slot);
-    html += `<div class="card"><h3 style="margin-top:0">${esc(t(slot))}</h3>`;
-    if (!list.length && mealForm !== slot) html += `<p class="muted">${esc(t('noMealsSlot'))}</p>`;
+    html += `<div class="card" data-slot="${slot}"><h3 style="margin-top:0">${esc(t(slot))}</h3>`;
+    if (!list.length && mealForm !== slot) html += `<p class="muted empty-note">${esc(t('noMealsSlot'))}</p>`;
     html += '<ul class="clean">';
     for (const m of list) {
-      if (mealEditId === m.id) { html += `<li>${mealFormHtml(m)}</li>`; continue; }
+      if (mealEditId === m.id) { html += `<li data-meal="${m.id}">${mealFormHtml(m)}</li>`; continue; }
       const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
       const statusTag = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
         : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
@@ -89,11 +89,11 @@ async function screenToday() {
       if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
       if (m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
       if (can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
-      html += `<li><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+      html += `<li data-meal="${m.id}"><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
     }
     html += '</ul>';
     if (mealForm === slot) html += mealFormHtml(null, slot);
-    else html += `<button class="btn small" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
+    else html += `<button class="btn small add-slot" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
     html += '</div>';
   }
   return html;
@@ -228,38 +228,39 @@ function filterPicker(v) { pickerState.filter = v; rerenderPicker(); }
 function chooseRecipe(id) { pickerState.recipeId = id; saveMeal(); }
 
 function selectDay(iso) { mealsDay = iso; mealForm = false; mealEditId = null; loadTab(); }
-// Opening a form redraws quietly: no dimming, and the form grows open when it arrives.
-function openAddMeal(slot) { startPicker(null); mealForm = slot; mealEditId = null; loadTab({ quiet: true }); }
+// Opening a form puts it in place at once, from the data on screen. The slot's "Add a meal" button is replaced by the
+// form, and its empty note is hidden while the form is open. If that isn't possible, the tab redraws quietly.
+function openAddMeal(slot) {
+  startPicker(null); mealForm = slot; mealEditId = null;
+  const opened = openFormNow('meal-' + slot, () => {
+    const card = document.querySelector(`[data-slot="${slot}"]`);
+    const btn = card && card.querySelector('.add-slot');
+    if (!btn) return null;
+    return { els: [btn], hide: [card.querySelector('.empty-note')].filter(Boolean) };
+  }, mealFormHtml(null, slot));
+  if (!opened) loadTab({ quiet: true });
+}
 function editMeal(id) {
   const meal = (cache.meals || []).find((m) => m.id === id);
-  startPicker(meal || null);
-  mealEditId = id; mealForm = false; loadTab({ quiet: true });
+  if (!meal) { mealEditId = id; mealForm = false; return loadTab({ quiet: true }); }
+  startPicker(meal);
+  mealEditId = id; mealForm = false;
+  const opened = openFormNow('meal-edit-' + id, () => {
+    const li = document.querySelector(`li[data-meal="${id}"]`);
+    return li ? { els: [li] } : null;
+  }, `<li data-meal="${id}">${mealFormHtml(meal)}</li>`);
+  if (!opened) loadTab({ quiet: true });
 }
 // The key of the meal form that is open: 'meal-<slot>' for a new meal, 'meal-edit-<id>' for an edit, or ''.
 function mealFormKey() {
   if (mealEditId) return 'meal-edit-' + mealEditId;
   return typeof mealForm === 'string' && mealForm ? 'meal-' + mealForm : '';
 }
-// Cancel folds the form closed in place, then redraws the tab quietly. While it folds, the slot's
-// "Add a meal" button and empty note rise into place under it, so the card never goes blank.
+// Cancel folds the form away and puts the slot's button and note back, with no wait for the network.
 function cancelMeal() {
   const key = mealFormKey();
-  const wrap = key ? document.querySelector(`[data-fold="${key}"]`) : null;
-  if (!wrap) { mealForm = false; mealEditId = null; loadTab({ quiet: true }); return; }
-  if (wrap.classList.contains('closing')) return;
-  const card = wrap.closest('.card');
-  const slot = typeof mealForm === 'string' ? mealForm : null;
-  if (card && slot && !mealEditId) {
-    // Only the slot's own meal list counts. The recipe rows in the picker also use ul.clean, so don't look at those.
-    const hasItems = card.querySelectorAll(':scope > ul.clean > li').length > 0;
-    const ph = document.createElement('div');
-    ph.className = 'meal-placeholder';
-    ph.innerHTML = (hasItems ? '' : `<p class="muted">${esc(t('noMealsSlot'))}</p>`)
-      + `<button class="btn small" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
-    // Above the form, so the note and button are in place from the first frame. The form folds away below them.
-    wrap.before(ph);
-  }
-  foldClose(key, () => { mealForm = false; mealEditId = null; loadTab({ quiet: true }); });
+  if (!key) { mealForm = false; mealEditId = null; return loadTab({ quiet: true }); }
+  closeFormNow(key, () => { mealForm = false; mealEditId = null; });
 }
 
 async function saveMeal() {
@@ -291,7 +292,7 @@ async function saveMeal() {
   if (error) return setProblem(error);
   mealsDay = date;
   // The form folds closed, then the tab redraws with the saved meal and the confirmation.
-  foldClose(mealFormKey(), () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; loadTab({ quiet: true }); });
+  closeFormNow(mealFormKey(), () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; }, () => loadTab({ quiet: true }));
 }
 
 async function setMealStatus(id, status) {

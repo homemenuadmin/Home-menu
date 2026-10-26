@@ -404,3 +404,6 @@ html { scrollbar-gutter: stable; }
 @keyframes splashBob { 0%, 100% { transform: translateY(0); opacity: .55; } 50% { transform: translateY(-10px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .splash, .splash-mark span { animation: none; } }
 @keyframes placeFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* An element that is replaced or hidden while a form is open. Set by openFormNow, cleared on close. */
+.form-hidden { display: none !important; }
