@@ -362,6 +362,20 @@ function initDeck() {
   if (deckRO) deckRO.disconnect();
   deckRO = new ResizeObserver(() => paintStacks());
   el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
+  // A mouse wheel or trackpad moves one card per gesture, the same as a swipe, and never scrolls the page.
+  let wheelLock = false;
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (wheelLock || e.target.closest('.sg-picker')) return;
+    const dy = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : 0;
+    const dx = dy === 0 ? e.deltaX : 0;
+    if (!dx && !dy) return;
+    wheelLock = true;
+    setTimeout(() => { wheelLock = false; }, 380);
+    const list = e.target.closest('.sg-list');
+    if (list && dy) return stepStack(list.closest('.sg-slot'), dy > 0 ? 1 : -1);
+    if (dx) slideTo(deck.cur + (dx > 0 ? 1 : -1));
+  }, { passive: false });
 }
 
 // Approve: the other ideas slide away, one after another, then the approved meal is pinned.
@@ -458,7 +472,9 @@ function slideTo(i) {
 document.addEventListener('pointerdown', (e) => {
   const el = document.getElementById('sgDeck');
   if (!el || !el.contains(e.target)) return;
-  if (e.target.closest('button, input, textarea, li, select, .sg-picker')) return;
+  suppressClick = false;   // a drag that ends without a click must not swallow the next tap
+  // A drag may start on a button or ingredient row (a tap there still counts as a tap); typing and the picker's list don't.
+  if (e.target.closest('input, textarea, select, .sg-picker')) return;
   const list = e.target.closest('.sg-list');
   if (list && !list.querySelector('.sg-card.open')) listDrag = { list, y0: e.clientY };
   slideDrag = { x0: e.clientX, y0: e.clientY, px: 0, on: false, moved: false, el };
@@ -488,7 +504,9 @@ document.addEventListener('pointerup', (e) => {
   if (!d.on) return;
   d.el.classList.remove('dragging');
   suppressClick = true;
+  // One meal card at a time: a swipe past a fifth of the width moves one card, anything less goes back.
   const w = d.el.clientWidth || 1;
-  slideTo(deck.cur - Math.round(d.px / (w * 0.3)));
+  if (Math.abs(d.px) > w * 0.2) slideTo(deck.cur + (d.px < 0 ? 1 : -1));
+  else layoutDeck();
 });
 window.addEventListener('resize', () => { layoutDeck(); paintStacks(); });

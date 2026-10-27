@@ -473,7 +473,8 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 
 /* Home suggestions, as in the approved mockup: the meal cards in a row, each with a stack of ideas,
    the approved meal pinned, and the "None of these?" picker. */
-.sg-deck { position: relative; height: clamp(470px, 66vh, 600px); margin-top: 6px; perspective: 1200px; touch-action: pan-y; user-select: none; }
+/* The deck takes its own touch gestures (swipes and stack drags), so the page doesn't scroll under them. Contents are clipped, so nothing scrolls sideways. */
+.sg-deck { position: relative; height: clamp(470px, 66vh, 600px); margin-top: 6px; perspective: 1200px; touch-action: none; user-select: none; overflow: hidden; overscroll-behavior: contain; }
 .sg-deck.dragging { cursor: grabbing; }
 .sg-deck.dragging .sg-slot { transition: none; }
 .sg-slot { position: absolute; top: 0; bottom: 0; left: 50%; width: 84%; display: flex; flex-direction: column; background: #fff;
@@ -541,7 +542,7 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .sg-list { transition: opacity .3s ease; }
 .sg-pill { transition: opacity .25s ease .35s; }
 .sg-slot.picking .sg-list, .sg-slot.picking .sg-pill { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
-.sg-pick-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 2px 2px 8px; }
+.sg-pick-list { touch-action: pan-y; overscroll-behavior: contain; flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 2px 2px 8px; }
 .sg-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; background: #fff; }
 .sg-pick-thumb { width: 36px; height: 36px; flex: 0 0 36px; align-self: center; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
 .sg-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
