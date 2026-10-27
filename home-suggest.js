@@ -274,6 +274,13 @@ function paintStacks() {
 
     if (section.classList.contains('approved')) {
       cards.forEach((c) => {
+        if (!c.classList.contains('pinned')) {
+          // Not the approved one: it has swiped away and stays out of sight.
+          c.style.opacity = '0';
+          c.style.transform = 'translateX(-130%) rotate(-6deg)';
+          c.style.zIndex = '1';
+          return;
+        }
         const isOpen = c === open;
         c.style.top = isOpen ? '0px' : '20px';
         c.style.height = (isOpen ? H : cardH) + 'px';
@@ -357,8 +364,12 @@ function stepStack(section, dir) {
 function initDeck() {
   const el = document.getElementById('sgDeck');
   if (!el) return;
+  // A redraw (after Approve or Change) builds new elements. Place them at once, so they don't slide in from their defaults.
+  el.classList.add('instant');
   layoutDeck();
   paintStacks();
+  void el.offsetHeight;
+  el.classList.remove('instant');
   if (deckRO) deckRO.disconnect();
   deckRO = new ResizeObserver(() => paintStacks());
   el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
@@ -387,20 +398,25 @@ function sgApprove(mealId) {
   const list = card.closest('.sg-list');
   const cards = [...list.querySelectorAll('.sg-card')];
   const pinIdx = cards.indexOf(card);
+  const section = card.closest('.sg-slot');
   cards.forEach((c, i) => {
     if (c === card) return;
     c.style.transitionDelay = (Math.abs(i - pinIdx) * 60) + 'ms';
     c.style.transform = 'translateX(-130%) rotate(-6deg)';
     c.style.opacity = '0';
   });
-  card.style.top = '0px';
-  card.style.height = list.clientHeight + 'px';
-  card.style.transform = 'none';
-  card.style.zIndex = '30';
+  // Then the approved card moves to its pinned place on the meal card, and only then is the saved meal drawn.
+  // The drawn card matches where it already is, so nothing jumps or replays.
+  setTimeout(() => {
+    card.classList.add('pinned');
+    section.classList.add('approved');
+    card.style.transitionDelay = '0ms';
+    paintStacks();
+  }, motion('--sg-approve-ms', 480));
   setTimeout(async () => {
     await setMealStatus(mealId, 'approved');
     deckBusy = false;
-  }, motion('--sg-approve-ms', 480));
+  }, motion('--sg-approve-ms', 480) + motion('--sg-pin-ms', 650));
 }
 
 async function sgUse(recipeId, slot) {
