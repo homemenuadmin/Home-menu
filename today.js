@@ -63,8 +63,8 @@ async function screenToday() {
       .eq('household_id', hh.id)
       .gte('meal_date', today)
       .lte('meal_date', last),
-    sb.from('recipes').select('id, title_en, title_ar, minutes').order('title_en'),
-    sb.from('recipe_ingredients').select('recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
+    sb.from('recipes').select('id, household_id, created_by, title_en, title_ar, minutes').order('title_en'),
+    sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
     sb.from('rules').select('kind, ingredient_key').eq('household_id', hh.id),
   ]);
@@ -110,6 +110,7 @@ async function screenToday() {
 // Recipes that contain something the household's rules rule out are left out, as on the Recipes screen.
 function buildPickerRecipes(recipes, ings, pantry, rules) {
   const inStock = new Set(pantry.filter((p) => p.level !== 'Finished').map((p) => p.ingredient_key));
+  cache.inStockKeys = inStock;
   const donts = new Set(rules.filter((r) => r.kind === 'dont' && r.ingredient_key).map((r) => r.ingredient_key));
   const ingMap = {};
   for (const i of ings) (ingMap[i.recipe_id] = ingMap[i.recipe_id] || []).push(i);
@@ -119,13 +120,15 @@ function buildPickerRecipes(recipes, ings, pantry, rules) {
       const missing = list.filter((i) => !i.optional && !inStock.has(i.ingredient_key)).length;
       return {
         id: r.id,
+        household_id: r.household_id,
+        created_by: r.created_by,
         title_en: r.title_en,
         title_ar: r.title_ar,
         minutes: r.minutes,
         missing,
         ready: missing === 0,
         hidden: list.some((i) => donts.has(i.ingredient_key)),
-        ings: list.map((i) => ({ name_en: i.name_en, name_ar: i.name_ar, quantity: i.quantity, optional: i.optional, have: inStock.has(i.ingredient_key) })),
+        ings: list,
       };
     })
     .filter((r) => !r.hidden);
@@ -172,19 +175,17 @@ function pickerRowHtml(r) {
   const tag = r.ready
     ? `<span class="tag">${esc(t('ready'))}</span>`
     : `<span class="tag warn">${esc(t('missing'))} ${r.missing}</span>`;
-  const ings = r.ings.map((i, idx) => {
-    const mark = i.optional ? `<span class="muted">${esc(t('optional'))}</span>`
-      : (i.have ? `<span class="have">✓</span>` : `<span class="lack">${esc(t('missing'))}</span>`);
-    return `<li style="--i:${idx}"><div class="row"><span>${esc(nameOf(i.name_en, i.name_ar))}${i.quantity ? ' · ' + esc(i.quantity) : ''}</span>${mark}</div></li>`;
-  }).join('');
+  const ings = r.ings.map((i, idx) => ingLiHtml(i, idx)).join('');
   return `<div class="pick-item ${open ? 'open' : ''}" data-pick="${r.id}">
       <button class="pick-row" onclick="togglePick('${r.id}')" aria-expanded="${open}">
         <span class="pick-thumb" style="background:${color}" aria-hidden="true">${initial}</span>
-        <span class="pick-meta"><strong>${esc(name)}</strong><small>${r.minutes} min</small><span>${tag}</span></span>
+        <span class="pick-meta"><strong>${esc(name)}</strong><small>${r.minutes} min</small><span class="rstatus">${tag}</span></span>
         <span class="pick-chev" aria-hidden="true">⌄</span>
       </button>
       <div class="pick-details"><div class="pick-details-inner">
+        ${ingHeadHtml(r)}
         <ul class="clean pick-ings">${ings}</ul>
+        ${ingAddHtml(r)}
         <div class="pick-actions">
           <div class="stepper">
             <button type="button" onclick="pickServings(-1)">−</button>
@@ -209,6 +210,7 @@ function paintPicks() {
   document.querySelectorAll('[data-pick]').forEach((el) => {
     const open = el.dataset.pick === pickerState.openId;
     el.classList.toggle('open', open);
+    if (!open) toggleIngEdit(el, false);
     el.querySelector('.pick-row').setAttribute('aria-expanded', String(open));
   });
 }

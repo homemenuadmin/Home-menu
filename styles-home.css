@@ -407,3 +407,56 @@ html { scrollbar-gutter: stable; }
 
 /* An element that is replaced or hidden while a form is open. Set by openFormNow, cleared on close. */
 .form-hidden { display: none !important; }
+
+/* Recipe ingredients: edit controls on the same line as each name. Shared by the Recipes tab and the meal picker. */
+.ings-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 4px; }
+.ings-head h3 { margin: 0; }
+.pick-edit-btn { border: 1.5px solid var(--teal, #0F766E); background: #fff; color: var(--teal, #0F766E); border-radius: 999px;
+  padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: grid; }
+.pick-edit-btn > span { grid-area: 1 / 1; transition: opacity .2s ease, transform .2s var(--pick-out); }
+.pick-edit-btn .when-edit { opacity: 0; transform: translateY(5px); }
+.pick-item.editing .pick-edit-btn { background: var(--teal, #0F766E); color: #fff; }
+.pick-item.editing .pick-edit-btn .when-read { opacity: 0; transform: translateY(-5px); }
+.pick-item.editing .pick-edit-btn .when-edit { opacity: 1; transform: none; }
+.ing-line { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 4px 0; }
+.ing-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ing-qty { color: var(--muted, #4B5563); font-size: 13px; }
+.pick-item.editing .ing-qty { display: none; }
+.ing-mark { overflow: hidden; max-width: 90px; white-space: nowrap; transition: opacity .2s ease, max-width var(--pick-close) var(--pick-io); }
+.pick-item.editing .ing-mark { opacity: 0; max-width: 0; }
+.ing-tools { display: flex; align-items: center; gap: 4px; max-width: 0; opacity: 0; overflow: hidden; flex: 0 0 auto;
+  transition: max-width var(--pick-close) var(--pick-out), opacity .2s ease; transition-delay: calc(var(--i, 0) * 35ms); }
+.pick-item.editing .ing-tools { max-width: 210px; opacity: 1; }
+.ing-step { display: flex; align-items: center; border: 1.5px solid var(--line, #E5E7EB); border-radius: 9px; overflow: hidden; height: 30px; }
+.ing-step button { width: 28px; height: 30px; border: 0; background: var(--bg, #FFF8F0); font-size: 16px; line-height: 1; color: var(--ink, #1F2937); cursor: pointer; padding: 0; }
+.ing-step button:active { background: var(--teal-soft, #E0F7F2); }
+.ing-step .ing-amt { min-width: 62px; }
+.ing-amt { text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ing-x { width: 28px; height: 30px; border: 0; border-radius: 9px; background: transparent; color: var(--coral, #C2410C); font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
+li.leaving { opacity: 0; transition: opacity .2s ease; }
+.ing-add-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--pick-close) var(--pick-io); }
+.ing-add { min-height: 0; overflow: hidden; display: flex; gap: 6px; padding: 0; opacity: 0; transform: translateY(-6px);
+  transition: opacity .2s ease, transform var(--pick-close) var(--pick-out); }
+.pick-item.editing .ing-add-wrap { grid-template-rows: 1fr; }
+.pick-item.editing .ing-add { opacity: 1; transform: none; padding: 8px 0 2px; transition-delay: 100ms; }
+.ing-add input { height: 36px; padding: 6px 8px; border: 1.5px solid var(--line, #E5E7EB); border-radius: 9px; font: inherit; font-size: 14px; background: #fff; min-width: 0; color: var(--ink, #1F2937); }
+.ing-new-name { flex: 1; }
+.ing-new-qty { width: 84px; }
+.ing-add-btn { height: 36px; border: 0; border-radius: 9px; background: var(--teal, #0F766E); color: #fff; padding: 0 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+/* The steps card: a sheet that rises over the screen. */
+#stepsSheet { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
+#stepsSheet.on { pointer-events: auto; }
+.steps-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.35); opacity: 0; transition: opacity .25s ease; }
+#stepsSheet.on .steps-scrim { opacity: 1; }
+.steps-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh; background: #fff; border-radius: 20px 20px 0 0;
+  display: flex; flex-direction: column; transform: translateY(105%); transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+#stepsSheet.on .steps-sheet { transform: none; }
+.steps-grab { width: 44px; height: 5px; background: var(--line, #E5E7EB); border-radius: 999px; margin: 10px auto 4px; }
+.steps-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 20px 12px; border-bottom: 1px solid var(--line, #E5E7EB); }
+.steps-head h2 { font-size: 18px; margin: 0; }
+.steps-done { border: 0; background: transparent; font: inherit; font-size: 15px; color: var(--teal, #0F766E); font-weight: 600; cursor: pointer; }
+.steps-list { overflow: auto; margin: 0; padding: 8px 20px 28px; padding-inline-start: 40px; line-height: 1.5; }
+.steps-list li { padding: 10px 0; border-bottom: 1px solid var(--line, #E5E7EB); }
+.steps-list li:last-child { border-bottom: 0; }
+.steps-list p { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .steps-sheet, .steps-scrim { transition-duration: 1ms !important; } }
