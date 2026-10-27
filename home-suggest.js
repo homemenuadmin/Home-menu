@@ -1,11 +1,16 @@
-// Home suggestions for the family: for each meal of the day, a few ideas to approve, the approved meal pinned,
-// and a picker for anything else. Ideas come from the household's recipes (ready ones first) and, in the
-// background, from the AI, which is asked for dishes that use what is in the kitchen.
+// Home suggestions for the family, laid out as in the approved mockup (Mock-ups/home-suggestions-mockup.html):
+// a row of meal cards to swipe between, each with a stack of ideas. Approve sends the others away and pins the
+// approved meal; "None of these?" opens the picker. Ideas come from the household's recipes (ready ones first)
+// and, in the background, from the AI, which is asked for dishes that use what is in the kitchen.
 // Part of Home Menu. Loaded by index.html after home.js.
 
-// Ideas that the AI has been asked for in this page visit, so a failed request isn't repeated on every refresh.
-const aiAsked = new Set();
-let sgBusy = false; // an approve is in progress
+const aiAsked = new Set();                 // AI ideas asked for in this page visit, so a failed request isn't repeated
+const deck = { cur: 0, front: {} };        // the meal card in front, and which idea is in front of each meal
+let deckBusy = false;                      // an approve is in progress
+let deckRO = null;                         // keeps the stacks the right size
+let slideDrag = null;                      // a sideways drag between meal cards
+let listDrag = null;                       // a drag over a stack, to move through it
+let suppressClick = false;                 // a drag just ended, so the click that follows is ignored
 
 // Everything the Home screen needs: today's meals, recipes, the kitchen and the household's rules.
 async function loadPlan() {
@@ -16,7 +21,7 @@ async function loadPlan() {
       .eq('household_id', hh.id)
       .eq('meal_date', today),
     sb.from('recipes')
-      .select('id, household_id, created_by, copied_from, title_en, title_ar, minutes, meal_slot, source, created_at')
+      .select('id, household_id, created_by, copied_from, title_en, title_ar, minutes, meal_slot, source, created_at, steps_en, steps_ar')
       .order('title_en'),
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('id, ingredient_key, name_en, name_ar, level').eq('household_id', hh.id).order('name_en'),
@@ -25,6 +30,8 @@ async function loadPlan() {
   for (const r of [meals, recipes, ings, pantry, rules]) if (r.error) throw r.error;
   const pantryRows = pantry.data || [];
   cache.pickerRecipes = buildPickerRecipes(recipes.data || [], ings.data || [], pantryRows, rules.data || []);
+  const raw = new Map((recipes.data || []).map((r) => [r.id, r]));
+  for (const r of cache.pickerRecipes) r.desc = describe(raw.get(r.id) || {}, r.ings);
   return {
     today,
     meals: meals.data || [],
@@ -34,12 +41,23 @@ async function loadPlan() {
   };
 }
 
-// The household's recipes that suit a meal: those marked for it or for any meal, ready ones first.
+// The line under a dish's name: the start of its steps, or the ingredients for an idea that has no steps yet.
+function describe(src, ings) {
+  const steps = String(nameOf(src.steps_en || '', src.steps_ar || '') || '').replace(/\s+/g, ' ').trim();
+  if (steps) return steps.length > 140 ? steps.slice(0, 137).trimEnd() + '…' : steps;
+  const names = (ings || []).map((i) => nameOf(i.name_en, i.name_ar)).filter(Boolean).slice(0, 5);
+  return names.length ? t('withLabel') + ': ' + names.join(', ') : '';
+}
+
+// The recipes that suit a meal: those marked for it or for any meal, ready ones first.
 function slotRecipes(slot) {
   return (cache.pickerRecipes || [])
     .filter((r) => !r.meal_slot || r.meal_slot === slot)
-    .sort((a, b) => a.missing - b.missing || (a.title_en || '').localeCompare(b.title_en || ''));
+    .sort((a, b) => rankOf(a) - rankOf(b) || (a.title_en || '').localeCompare(b.title_en || ''));
 }
+
+// Best matches first: ready recipes, then AI ideas, then the fewest missing ingredients.
+function rankOf(r) { return r.ready ? 0 : r.source === 'ai' ? 1 : 2 + r.missing; }
 
 // A meal with nothing planned yet gets up to three ideas from the household's own recipes.
 // Returns true when something was added, so the caller reloads the plan.
@@ -66,7 +84,7 @@ async function makeSuggestions(plan) {
 }
 
 // Asks the AI for ideas for each meal that has no approved meal and no AI ideas yet today. It runs in the
-// background: the screen shows at once, and the ideas join the list when they arrive.
+// background: the screen shows at once, and the ideas join the deck when they arrive.
 function startAiIdeas(plan) {
   for (const slot of SLOTS) {
     const key = plan.today + '|' + slot;
@@ -135,96 +153,204 @@ async function fetchAiIdeas(slot, plan) {
   if (added) await loadTab({ quiet: true });
 }
 
-// One meal of the day: the pinned meal if one is approved, otherwise the ideas to approve and the picker.
-function suggestSlotHtml(slot, plan) {
+// What one meal card holds: the approved meal alone, or the ideas for it, best first.
+function slotState(plan, slot) {
   const onSlot = plan.meals.filter((m) => m.meal_slot === slot);
-  const pinned = onSlot.find((m) => m.status === 'approved' || m.status === 'cooked');
   const byId = new Map((cache.pickerRecipes || []).map((r) => [r.id, r]));
-  let body;
-  if (pinned) {
-    body = pinnedHtml(pinned, byId.get(pinned.recipe_id));
-  } else {
-    const suggested = onSlot.filter((m) => m.status === 'suggested');
-    body = suggested.length
-      ? `<div class="sg-list">${suggested.map((m) => suggestRowHtml(m, byId.get(m.recipe_id))).join('')}</div>`
-      : `<p class="muted sg-empty">${esc(t('noSuggestions'))}</p>`;
-    body += `<button class="sg-pill" data-sg-pick aria-expanded="false">${esc(t('noneOfThese'))}</button>`;
-    body += pickerHtml(slot);
-  }
-  return `<section class="sg-slot" data-sg-slot="${slot}">
-    <h3 class="home-label sg-title">${esc(t(slot))}</h3>
-    ${body}
-  </section>`;
+  const pick = (m) => ({ meal: m, r: byId.get(m.recipe_id) || null });
+  const approved = onSlot.find((m) => m.status === 'approved' || m.status === 'cooked') || null;
+  const items = approved
+    ? [pick(approved)]
+    : onSlot.filter((m) => m.status === 'suggested').map(pick).filter((x) => x.r)
+        .sort((a, b) => rankOf(a.r) - rankOf(b.r));
+  return { slot, approved, items };
 }
 
-function statusTagHtml(status) {
-  if (status === 'cooked') return `<span class="tag">${esc(t('cookedDone'))}</span>`;
-  return `<span class="tag gold">${esc(t('approved'))}</span>`;
+function colorFor(id) {
+  return PICK_COLORS[[...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % PICK_COLORS.length];
 }
 
 function readyTagHtml(r) {
+  if (r.source === 'ai') return `<span class="sg-tag ai">${esc(t('aiIdea'))}</span>`;
   return r.ready
-    ? `<span class="tag">${esc(t('ready'))}</span>`
-    : `<span class="tag warn">${esc(t('missing'))} ${r.missing}</span>`;
+    ? `<span class="sg-tag ok">${esc(t('haveEverything'))}</span>`
+    : `<span class="sg-tag warn">${esc(t('missing'))} ${r.missing}</span>`;
 }
 
-// The approved meal, pinned. Edit opens its ingredients for editing (the same editor as the picker and Recipes),
-// and Change puts the meal back among the ideas.
-function pinnedHtml(m, r) {
-  const change = m.status === 'approved'
-    ? `<button class="btn secondary sg-change" data-sg-change="${m.id}">${esc(t('changeMeal'))}</button>`
-    : '';
-  if (!r) {
-    const name = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
-    return `<div class="card sg-pin-plain"><div class="row"><strong>${esc(name)}</strong>${statusTagHtml(m.status)}</div>${change}</div>`;
-  }
-  const ings = r.ings.map((i, idx) => ingLiHtml(i, idx)).join('');
-  return `<div class="pick-item open sg-pin sg-pin-in" data-pick="${r.id}">
-    <div class="sg-pin-head"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong>${statusTagHtml(m.status)}<small>${r.minutes} min</small><span class="rstatus">${readyTagHtml(r)}</span></div>
-    <div class="pick-details"><div class="pick-details-inner">
-      ${ingHeadHtml(r)}
-      <ul class="clean pick-ings">${ings}</ul>
-      ${ingAddHtml(r)}
-      ${change}
-    </div></div>
-  </div>`;
-}
-
-function suggestRowHtml(m, r) {
+// One idea in the deck. Its ingredients are the real editor's rows, so Edit works as it does in the picker.
+function cardHtml(item, pinned) {
+  const { meal: m, r } = item;
   const name = r ? nameOf(r.title_en, r.title_ar) : (m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '');
-  const tags = (r ? readyTagHtml(r) : '') + (r && r.source === 'ai' ? `<span class="tag gold">${esc(t('aiIdea'))}</span>` : '');
-  return `<div class="sg-row" data-sg-meal="${m.id}">
-    <div class="sg-row-main"><strong>${esc(name)}</strong>${r ? `<small>${r.minutes} min</small>` : ''}</div>
-    <div class="sg-row-tags">${tags}</div>
-    <button class="btn small" data-sg-approve="${m.id}">${esc(t('approve'))}</button>
+  const letter = esc((name || '?').trim().charAt(0).toUpperCase());
+  const color = colorFor(r ? r.id : m.recipe_id || m.id);
+  const desc = r && r.desc ? `<p class="sg-desc">${esc(r.desc)}</p>` : '';
+  const body = r
+    ? `${ingHeadHtml(r)}<ul class="clean pick-ings">${r.ings.map((i, idx) => ingLiHtml(i, idx)).join('')}</ul>${ingAddHtml(r)}`
+    : '';
+  const footer = pinned
+    ? (r ? `<button class="sg-toggle" data-sg-toggle><span class="when-read">${esc(t('ingredients'))}</span><span class="when-edit">${esc(t('done'))}</span></button>` : '')
+    : `<button class="btn sg-approve" data-sg-approve="${m.id}">${esc(t('approve'))}</button>`;
+  return `<div class="pick-item sg-card${pinned ? ' pinned' : ''}" data-sg-card="${m.id}"${r ? ` data-pick="${r.id}"` : ''}>
+    <div class="sg-img" style="background:${color}">
+      <button class="sg-back" data-sg-close>‹ ${esc(t('back'))}</button>
+      <button class="sg-back sg-change" data-sg-change="${m.id}">${esc(t('changeMeal'))}</button>
+      <span class="sg-letter" aria-hidden="true">${letter}</span>
+    </div>
+    <div class="sg-body">
+      <div class="sg-top"><strong>${esc(name)}</strong>${r ? `<small>${r.minutes} min</small>` : ''}</div>
+      ${r ? readyTagHtml(r) : ''}
+      ${desc}
+      <div class="pick-details"><div class="pick-details-inner sg-more">${body}</div></div>
+      ${footer}
+    </div>
   </div>`;
 }
 
-// The picker that "None of these?" opens: every recipe for the meal, with Use this to approve one.
+// The picker "None of these?" opens inside the meal card: every recipe for the meal, with Use this.
 function pickerHtml(slot) {
   const rows = slotRecipes(slot);
   const list = rows.length
     ? rows.map((r) => `<div class="sg-pick-row">
-        <div class="sg-row-main"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong><small>${r.minutes} min</small></div>
-        <div class="sg-row-tags">${readyTagHtml(r)}</div>
+        <span class="sg-pick-thumb" style="background:${colorFor(r.id)}">${esc((nameOf(r.title_en, r.title_ar) || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="sg-row-main"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong><small>${r.minutes} min</small>${readyTagHtml(r)}</div>
         <button class="btn small" data-sg-use="${r.id}" data-slot="${slot}">${esc(t('useThis'))}</button>
       </div>`).join('')
     : `<p class="muted">${esc(t('noRecipes'))}</p>`;
-  return `<div class="sg-picker">${list}</div>`;
+  return `<div class="sg-pick-list">${list}</div>
+    <button class="btn secondary sg-cancel" data-sg-close-picker>${esc(t('cancel'))}</button>`;
 }
 
-// Approve: the other ideas slide away one after another, then the approved meal is pinned.
-function sgApprove(mealId, section) {
-  if (sgBusy || !section) return;
-  sgBusy = true;
-  const card = section.querySelector(`[data-sg-meal="${mealId}"]`);
-  const others = [...section.querySelectorAll('[data-sg-meal]')].filter((el) => el !== card);
-  others.forEach((el, i) => { el.style.transitionDelay = (i * 60) + 'ms'; el.classList.add('sg-away'); });
-  if (card) card.classList.add('sg-approving');
+function slotHtml(st) {
+  const cards = st.items.map((it) => cardHtml(it, !!st.approved)).join('');
+  const empty = st.items.length ? '' : `<p class="muted sg-empty">${esc(t('noSuggestions'))}</p>`;
+  const status = st.approved
+    ? `<span class="status ok">${esc(t('approved'))}</span>`
+    : `<span class="status">${esc(t('suggested'))}</span>`;
+  const pill = st.approved ? '' : `<button class="sg-pill" data-sg-pick aria-expanded="false">${esc(t('noneOfThese'))}</button>`;
+  return `<section class="sg-slot${st.approved ? ' approved' : ''}" data-sg-slot="${st.slot}">
+    <div class="sg-head"><h3>${esc(t(st.slot))}</h3>${status}</div>
+    <div class="sg-list">${cards}${empty}</div>
+    ${pill}
+    <div class="sg-picker">${pickerHtml(st.slot)}</div>
+  </section>`;
+}
+
+// The meal cards in a row, with dots under them, as in the mockup.
+function deckHtml(plan) {
+  const slots = SLOTS.map((slot) => slotHtml(slotState(plan, slot))).join('');
+  const dots = SLOTS.map((s, i) => `<button data-sg-go="${i}" aria-label="${esc(t(s))}"></button>`).join('');
+  return `<div class="sg-deck" id="sgDeck">${slots}</div>
+    <div class="sg-dots" id="sgDots">${dots}</div>
+    <p class="sg-hint">${esc(t('sgHint'))}</p>`;
+}
+
+// Places the meal cards in the row: the current one in front, its neighbours smaller and behind.
+function layoutDeck() {
+  const el = document.getElementById('sgDeck');
+  if (!el) return;
+  const w = el.clientWidth || 1;
+  const px = slideDrag ? slideDrag.px : 0;
+  el.querySelectorAll('.sg-slot').forEach((s, i) => {
+    const off = i - deck.cur - px / w;
+    const a = Math.abs(off);
+    s.style.transform = `translateX(-50%) translateX(${off * 62}%) scale(${Math.max(0.78, 1 - a * 0.14)}) rotateY(${-off * 14}deg)`;
+    s.style.zIndex = String(20 - Math.round(a * 10));
+    s.style.opacity = a > 1.7 ? '0' : String(Math.max(0.35, 1 - a * 0.35));
+    s.classList.toggle('current', Math.round(off) === 0);
+  });
+  document.querySelectorAll('#sgDots button').forEach((d, k) => d.classList.toggle('on', k === deck.cur));
+}
+
+// Places each meal's ideas: a stack with the front one full size, the others as edges behind it.
+// An approved meal shows as one pinned card. An open card fills the stack.
+function paintStacks() {
+  document.querySelectorAll('#sgDeck .sg-list').forEach((list) => {
+    const section = list.closest('.sg-slot');
+    const cards = [...list.querySelectorAll('.sg-card')];
+    const H = list.clientHeight;
+    if (!cards.length || !H) return;
+    const cardH = Math.max(200, H - 72);
+    const open = cards.find((c) => c.classList.contains('open'));
+
+    if (section.classList.contains('approved')) {
+      cards.forEach((c) => {
+        const isOpen = c === open;
+        c.style.top = isOpen ? '0px' : '20px';
+        c.style.height = (isOpen ? H : cardH) + 'px';
+        c.style.transform = 'none';
+        c.style.opacity = '1';
+        c.style.zIndex = '30';
+        c.classList.add('front');
+      });
+      return;
+    }
+
+    const front = Math.min(deck.front[section.dataset.sgSlot] || 0, cards.length - 1);
+    cards.forEach((c, i) => {
+      const k = i - front, a = Math.abs(k);
+      c.classList.toggle('front', a === 0);
+      if (open) {
+        c.style.top = c === open ? '0px' : '20px';
+        c.style.height = (c === open ? H : cardH) + 'px';
+        c.style.transform = 'none';
+        c.style.opacity = c === open ? '1' : '0';
+        c.style.zIndex = c === open ? '30' : '1';
+        return;
+      }
+      c.style.height = cardH + 'px';
+      c.style.top = (20 + k * 16) + 'px';
+      c.style.transform = `scale(${Math.max(0.8, 1 - a * 0.05)})`;
+      c.style.opacity = a > 3 ? '0' : String(1 - a * 0.22);
+      c.style.zIndex = String(20 - a);
+    });
+  });
+}
+
+function stepStack(section, dir) {
+  const list = section.querySelector('.sg-list');
+  if (list.querySelector('.sg-card.open')) return;
+  const n = list.querySelectorAll('.sg-card').length;
+  const key = section.dataset.sgSlot;
+  const next = Math.max(0, Math.min(n - 1, (deck.front[key] || 0) + dir));
+  if (next === (deck.front[key] || 0)) return;
+  deck.front[key] = next;
+  paintStacks();
+}
+
+// Runs after the Home screen is drawn: lays out the deck and keeps the stacks sized to their lists.
+function initDeck() {
+  const el = document.getElementById('sgDeck');
+  if (!el) return;
+  layoutDeck();
+  paintStacks();
+  if (deckRO) deckRO.disconnect();
+  deckRO = new ResizeObserver(() => paintStacks());
+  el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
+}
+
+// Approve: the other ideas slide away, one after another, then the approved meal is pinned.
+function sgApprove(mealId) {
+  if (deckBusy) return;
+  const card = document.querySelector(`[data-sg-card="${mealId}"]`);
+  if (!card) return;
+  deckBusy = true;
+  const list = card.closest('.sg-list');
+  const cards = [...list.querySelectorAll('.sg-card')];
+  const pinIdx = cards.indexOf(card);
+  cards.forEach((c, i) => {
+    if (c === card) return;
+    c.style.transitionDelay = (Math.abs(i - pinIdx) * 60) + 'ms';
+    c.style.transform = 'translateX(-130%) rotate(-6deg)';
+    c.style.opacity = '0';
+  });
+  card.style.top = '0px';
+  card.style.height = list.clientHeight + 'px';
+  card.style.transform = 'none';
+  card.style.zIndex = '30';
   setTimeout(async () => {
     await setMealStatus(mealId, 'approved');
-    sgBusy = false;
-  }, motion('--sg-approve-ms', 520));
+    deckBusy = false;
+  }, motion('--sg-approve-ms', 480));
 }
 
 async function sgUse(recipeId, slot) {
@@ -241,18 +367,103 @@ async function sgUse(recipeId, slot) {
   await loadTab({ quiet: true });
 }
 
-// Clicks on the Home suggestions. One listener, so it survives redraws.
+// Clicks on the deck. One listener on the page, so it survives redraws.
 document.addEventListener('click', (e) => {
+  if (suppressClick) { suppressClick = false; if (e.target.closest('#sgDeck')) return; }
+  const go = e.target.closest('[data-sg-go]');
+  if (go) return slideTo(Number(go.dataset.sgGo));
+  const slot = e.target.closest('.sg-slot');
+  if (slot && !slot.classList.contains('current') && e.target.closest('#sgDeck') && !e.target.closest('button, input, li')) {
+    return slideTo([...document.querySelectorAll('#sgDeck .sg-slot')].indexOf(slot));
+  }
   const pick = e.target.closest('[data-sg-pick]');
   if (pick) {
-    const on = pick.closest('.sg-slot').classList.toggle('sg-picking');
-    pick.setAttribute('aria-expanded', String(on));
+    const section = pick.closest('.sg-slot');
+    section.classList.add('picking');
+    pick.setAttribute('aria-expanded', 'true');
+    return;
+  }
+  if (e.target.closest('[data-sg-close-picker]')) {
+    const section = e.target.closest('.sg-slot');
+    section.classList.remove('picking');
+    const pb = section.querySelector('.sg-pill');
+    if (pb) pb.setAttribute('aria-expanded', 'false');
     return;
   }
   const approve = e.target.closest('[data-sg-approve]');
-  if (approve) return sgApprove(approve.dataset.sgApprove, approve.closest('.sg-slot'));
+  if (approve) return sgApprove(approve.dataset.sgApprove);
   const change = e.target.closest('[data-sg-change]');
   if (change) return setMealStatus(change.dataset.sgChange, 'suggested');
   const use = e.target.closest('[data-sg-use]');
   if (use) return sgUse(use.dataset.sgUse, use.dataset.slot);
+  const toggle = e.target.closest('[data-sg-toggle]');
+  if (toggle) {
+    toggle.closest('.sg-card').classList.toggle('open');
+    return paintStacks();
+  }
+  const close = e.target.closest('[data-sg-close]');
+  if (close) {
+    close.closest('.sg-card').classList.remove('open');
+    return paintStacks();
+  }
+  // A tap on a card: the front one opens, one behind comes to the front.
+  const card = e.target.closest('.sg-card');
+  if (card && !e.target.closest('button, input, li, textarea, select') && !card.classList.contains('pinned')) {
+    const section = card.closest('.sg-slot');
+    const list = section.querySelector('.sg-list');
+    if (list.querySelector('.sg-card.open')) return;
+    const idx = [...list.querySelectorAll('.sg-card')].indexOf(card);
+    if (card.classList.contains('front')) {
+      card.classList.add('open');
+      return paintStacks();
+    }
+    deck.front[section.dataset.sgSlot] = idx;
+    paintStacks();
+  }
 });
+
+function slideTo(i) {
+  const n = document.querySelectorAll('#sgDeck .sg-slot').length;
+  deck.cur = Math.max(0, Math.min(n - 1, i));
+  slideDrag = null;
+  layoutDeck();
+}
+
+// Drags: sideways moves between meal cards; up or down over a stack moves through its ideas.
+document.addEventListener('pointerdown', (e) => {
+  const el = document.getElementById('sgDeck');
+  if (!el || !el.contains(e.target)) return;
+  if (e.target.closest('button, input, textarea, li, select')) return;
+  const list = e.target.closest('.sg-list');
+  if (list && !list.querySelector('.sg-card.open')) listDrag = { list, y0: e.clientY };
+  slideDrag = { x0: e.clientX, y0: e.clientY, px: 0, on: false, moved: false, el };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!slideDrag) return;
+  const dx = e.clientX - slideDrag.x0, dy = e.clientY - slideDrag.y0;
+  if (!slideDrag.on && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+    slideDrag.on = true;
+    slideDrag.moved = true;
+    slideDrag.el.classList.add('dragging');
+  }
+  if (slideDrag.on) { slideDrag.px = dx; layoutDeck(); }
+});
+document.addEventListener('pointerup', (e) => {
+  if (listDrag) {
+    const dy = e.clientY - listDrag.y0;
+    if (Math.abs(dy) > 30) {
+      suppressClick = true;
+      stepStack(listDrag.list.closest('.sg-slot'), dy < 0 ? 1 : -1);
+    }
+    listDrag = null;
+  }
+  if (!slideDrag) return;
+  const d = slideDrag;
+  slideDrag = null;
+  if (!d.on) return;
+  d.el.classList.remove('dragging');
+  suppressClick = true;
+  const w = d.el.clientWidth || 1;
+  slideTo(deck.cur - Math.round(d.px / (w * 0.3)));
+});
+window.addEventListener('resize', () => { layoutDeck(); paintStacks(); });

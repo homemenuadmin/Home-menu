@@ -46,7 +46,7 @@ async function screenHome() {
 
 // Family: the greeting, then a sheet with each meal of the day: its ideas to approve, or the approved meal pinned.
 function familyHomeHtml(plan, greeting, niceDate) {
-  const sections = SLOTS.map((slot) => suggestSlotHtml(slot, plan)).join('');
+  const sections = deckHtml(plan);
 
   const intro = cache.playIntro ? ' arriving' : '';
   return `<div class="home-stage${intro}" id="homeStage">
@@ -114,6 +114,7 @@ async function homeAddMeal() {
 // Family Home: sets the greeting and the sheet. On a fresh visit the greeting holds, then the sheet rises over it.
 // The greeting can't be scrolled back to: the sheet's top is fixed and only its list scrolls.
 function setupHome(intro) {
+  initDeck();   // the meal cards for the family (home-suggest.js), drawn with the screen
   const stage = document.getElementById('homeStage');
   const sheet = document.getElementById('homeSheet');
   if (!stage || !sheet) return;

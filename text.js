@@ -6,6 +6,9 @@
 // ---------------------------------------------------------------
 const TEXT = {
   en: {
+    haveEverything: 'You have everything',
+    sgHint: 'Drag the cards sideways for the other meals. Scroll a meal\'s list for more ideas.',
+    withLabel: 'With',
     tagline: 'Plan meals together with your household',
     letsStart: "Let's get you started",
     installTitle: 'Add Home Menu to your home screen',
@@ -212,6 +215,9 @@ const TEXT = {
     dateLocale: 'en-GB',
   },
   ar: {
+    haveEverything: 'لديكم كل شيء',
+    sgHint: 'اسحبوا البطاقات جانبا للوجبات الأخرى. مرروا قائمة كل وجبة لمزيد من الأفكار.',
+    withLabel: 'مع',
     tagline: 'خططوا للوجبات معا مع أسرتكم',
     letsStart: 'هيا نبدأ',
     installTitle: 'أضيفوا قائمة البيت إلى الشاشة الرئيسية',
