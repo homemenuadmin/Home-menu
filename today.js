@@ -63,7 +63,7 @@ async function screenToday() {
       .eq('household_id', hh.id)
       .gte('meal_date', today)
       .lte('meal_date', last),
-    sb.from('recipes').select('id, household_id, created_by, copied_from, title_en, title_ar, minutes').order('title_en'),
+    sb.from('recipes').select('id, household_id, created_by, copied_from, title_en, title_ar, minutes, meal_slot, source').order('title_en'),
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
     sb.from('rules').select('kind, ingredient_key').eq('household_id', hh.id),
@@ -128,6 +128,8 @@ function buildPickerRecipes(recipes, ings, pantry, rules) {
         title_en: r.title_en,
         title_ar: r.title_ar,
         minutes: r.minutes,
+        meal_slot: r.meal_slot,
+        source: r.source,
         missing,
         ready: missing === 0,
         hidden: list.some((i) => donts.has(i.ingredient_key)),

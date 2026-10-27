@@ -17,6 +17,17 @@ function markIntroPlayed() {
 }
 
 async function screenHome() {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening');
+  const niceDate = new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' });
+
+  if (activeRole() === 'member') {
+    let plan = await loadPlan();
+    if (await makeSuggestions(plan)) plan = await loadPlan();
+    startAiIdeas(plan);
+    return familyHomeHtml(plan, greeting, niceDate);
+  }
+
   const [meals, low] = await Promise.all([
     sb.from('meals')
       .select('id, meal_slot, status, recipes(title_en, title_ar)')
@@ -30,32 +41,12 @@ async function screenHome() {
   ]);
   if (meals.error) throw meals.error;
   if (low.error) throw low.error;
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening');
-  const niceDate = new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' });
-
-  if (activeRole() === 'member') return familyHomeHtml(meals.data || [], low.data || [], greeting, niceDate);
   return cookHomeHtml(meals.data || [], low.data || [], greeting, niceDate);
 }
 
-// Family: the greeting, then a sheet of today's confirmed meals (approved or cooked).
-function familyHomeHtml(meals, low, greeting, niceDate) {
-  const confirmed = meals.filter((m) => m.status === 'approved' || m.status === 'cooked');
-  let list = '';
-  ['breakfast', 'lunch', 'dinner'].forEach((slot) => {
-    for (const m of confirmed.filter((x) => x.meal_slot === slot)) {
-      const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
-      const tag = m.status === 'cooked'
-        ? `<span class="tag">${esc(t('cookedDone'))}</span>`
-        : `<span class="tag gold">${esc(t('approved'))}</span>`;
-      list += `<div class="card home-meal" style="--i:${list.split('home-meal').length - 1}">
-        <span class="muted">${esc(t(slot))}</span>
-        <div class="row"><strong>${esc(title)}</strong>${tag}</div>
-      </div>`;
-    }
-  });
-  if (!list) list = `<p class="muted home-empty">${esc(t('noConfirmedToday'))}</p>`;
+// Family: the greeting, then a sheet with each meal of the day: its ideas to approve, or the approved meal pinned.
+function familyHomeHtml(plan, greeting, niceDate) {
+  const sections = SLOTS.map((slot) => suggestSlotHtml(slot, plan)).join('');
 
   const intro = cache.playIntro ? ' arriving' : '';
   return `<div class="home-stage${intro}" id="homeStage">
@@ -70,10 +61,9 @@ function familyHomeHtml(meals, low, greeting, niceDate) {
     </div>
     <div class="home-sheet" id="homeSheet">
       <h2 class="home-sheet-title">${esc(t('todayMeals'))}</h2>
-      ${list}
-      <button class="btn home-picker" onclick="go('today')">${esc(t('goToPicker'))}</button>
+      ${sections}
       <h3 class="home-label">${esc(t('kitchenAlerts'))}</h3>
-      ${kitchenAlertsHtml(low)}
+      ${kitchenAlertsHtml(plan.low)}
       ${installCard('home')}
     </div>
   </div>`;

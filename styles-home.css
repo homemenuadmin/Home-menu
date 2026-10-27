@@ -470,3 +470,29 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .steps-hint { margin: 6px 2px 12px; font-size: 13px; }
 .steps-editor-actions { display: flex; gap: 10px; }
 .steps-editor-actions .btn { flex: 1; margin: 0; }
+
+/* Home suggestions: each meal's ideas, the approved meal pinned, and the "None of these?" picker. */
+.sg-slot { margin-bottom: 16px; }
+.sg-title { margin: 6px 4px 8px; }
+.sg-list { display: grid; gap: 10px; }
+.sg-empty { margin: 6px 4px 10px; }
+.sg-row, .sg-pick-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 2px solid var(--line, #E5E7EB);
+  border-radius: 18px; padding: 12px 14px; transition: transform 420ms cubic-bezier(.2,.7,.2,1), opacity 320ms ease, border-color 200ms ease; }
+.sg-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sg-row-main small { color: var(--muted, #6B7280); }
+.sg-row-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.sg-approving { border-color: var(--teal, #0F766E); }
+.sg-away { transform: translate3d(-120%, 0, 0) rotate(-4deg); opacity: 0; }
+.sg-pill { display: block; margin: 12px auto 0; border: 0; border-radius: 999px; padding: 10px 18px;
+  background: var(--teal-soft, #E6F4F1); color: var(--teal, #0F766E); font-weight: 700; font-size: 16px; cursor: pointer; }
+.sg-picker { display: none; margin-top: 10px; gap: 10px; }
+.sg-slot.sg-picking .sg-picker { display: grid; }
+.sg-slot.sg-picking .sg-list, .sg-slot.sg-picking .sg-empty { display: none; }
+.sg-pin { margin-top: 0; }
+.sg-pin-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sg-pin-head strong { flex: 1; min-width: 0; }
+.sg-pin-head small { color: var(--muted, #6B7280); }
+.sg-change { width: 100%; margin-top: 10px; }
+@keyframes sg-pin-in { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+.sg-pin-in { animation: sg-pin-in 420ms cubic-bezier(.2,.7,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .sg-row, .sg-pick-row, .sg-pin-in { transition: none !important; animation: none !important; } }
