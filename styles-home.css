@@ -527,9 +527,20 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 /* "None of these?" and the picker that opens in the meal card. */
 .sg-pill { display: block; margin: 12px auto 0; border: 0; border-radius: 999px; padding: 9px 18px; background: #E0F7F2; color: #0F766E;
   font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(15,118,110,.12); }
-.sg-picker { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
-.sg-slot.picking .sg-picker { display: flex; }
-.sg-slot.picking .sg-list, .sg-slot.picking .sg-pill { display: none; }
+/* The picker grows out of the pill's place into the card, as in the mockup. */
+.sg-picker { position: absolute; z-index: 6; background: #E0F7F2; border: 1px solid transparent; border-radius: 999px; box-shadow: none;
+  visibility: hidden; pointer-events: none; overflow: hidden;
+  transition: left .5s cubic-bezier(.16,1,.3,1), top .5s cubic-bezier(.16,1,.3,1), width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1),
+    border-radius .5s cubic-bezier(.16,1,.3,1), background-color .4s ease, box-shadow .4s ease, border-color .4s ease, visibility 0s linear .5s; }
+.sg-slot.picking .sg-picker { visibility: visible; pointer-events: auto; background: #fff; border-color: var(--line, #E5E7EB); border-radius: 22px;
+  box-shadow: 0 -10px 30px rgba(31,41,55,.14);
+  transition: left .5s cubic-bezier(.16,1,.3,1), top .5s cubic-bezier(.16,1,.3,1), width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1),
+    border-radius .5s cubic-bezier(.16,1,.3,1), background-color .4s ease, box-shadow .4s ease, border-color .4s ease, visibility 0s; }
+.sg-picker-box { height: 100%; display: flex; flex-direction: column; padding: 12px 12px 14px; opacity: 0; transition: opacity .15s ease; }
+.sg-slot.picking .sg-picker-box { opacity: 1; transition: opacity .3s ease .3s; }
+.sg-list { transition: opacity .3s ease; }
+.sg-pill { transition: opacity .25s ease .35s; }
+.sg-slot.picking .sg-list, .sg-slot.picking .sg-pill { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
 .sg-pick-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 2px 2px 8px; }
 .sg-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; background: #fff; }
 .sg-pick-thumb { width: 36px; height: 36px; flex: 0 0 36px; align-self: center; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 14px; }

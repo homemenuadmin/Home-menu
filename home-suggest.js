@@ -231,7 +231,7 @@ function slotHtml(st) {
     <div class="sg-head"><h3>${esc(t(st.slot))}</h3>${status}</div>
     <div class="sg-list">${cards}${empty}</div>
     ${pill}
-    <div class="sg-picker">${pickerHtml(st.slot)}</div>
+    <div class="sg-picker"><div class="sg-picker-box">${pickerHtml(st.slot)}</div></div>
   </section>`;
 }
 
@@ -306,6 +306,42 @@ function paintStacks() {
   });
 }
 
+// The picker grows out of the "None of these?" pill into the meal card, as in the mockup.
+// Geometry is measured from the card's inside edge; the picker starts where the pill is, then grows.
+function pillGeom(section) {
+  const sl = section.getBoundingClientRect();
+  const pb = section.querySelector('.sg-pill').getBoundingClientRect();
+  return { left: pb.left - sl.left - section.clientLeft, top: pb.top - sl.top - section.clientTop, width: pb.width, height: pb.height };
+}
+function finalGeom(section) {
+  const head = section.querySelector('.sg-head');
+  const top = head.offsetTop + head.offsetHeight + 8;
+  return { left: 0, top, width: section.clientWidth, height: section.clientHeight - top };
+}
+function setGeom(section, g) {
+  const p = section.querySelector('.sg-picker');
+  p.style.left = g.left + 'px';
+  p.style.top = g.top + 'px';
+  p.style.width = g.width + 'px';
+  p.style.height = g.height + 'px';
+}
+function openPicker(section) {
+  const p = section.querySelector('.sg-picker');
+  p.style.transition = 'none';
+  setGeom(section, pillGeom(section));
+  void p.offsetHeight;          // let the browser draw the pill's shape before it grows
+  p.style.transition = '';
+  section.classList.add('picking');
+  section.querySelector('.sg-pill').setAttribute('aria-expanded', 'true');
+  setGeom(section, finalGeom(section));
+}
+function closePicker(section) {
+  if (!section) return;
+  setGeom(section, pillGeom(section));
+  section.classList.remove('picking');
+  section.querySelector('.sg-pill').setAttribute('aria-expanded', 'false');
+}
+
 function stepStack(section, dir) {
   const list = section.querySelector('.sg-list');
   if (list.querySelector('.sg-card.open')) return;
@@ -377,19 +413,8 @@ document.addEventListener('click', (e) => {
     return slideTo([...document.querySelectorAll('#sgDeck .sg-slot')].indexOf(slot));
   }
   const pick = e.target.closest('[data-sg-pick]');
-  if (pick) {
-    const section = pick.closest('.sg-slot');
-    section.classList.add('picking');
-    pick.setAttribute('aria-expanded', 'true');
-    return;
-  }
-  if (e.target.closest('[data-sg-close-picker]')) {
-    const section = e.target.closest('.sg-slot');
-    section.classList.remove('picking');
-    const pb = section.querySelector('.sg-pill');
-    if (pb) pb.setAttribute('aria-expanded', 'false');
-    return;
-  }
+  if (pick) return openPicker(pick.closest('.sg-slot'));
+  if (e.target.closest('[data-sg-close-picker]')) return closePicker(e.target.closest('.sg-slot'));
   const approve = e.target.closest('[data-sg-approve]');
   if (approve) return sgApprove(approve.dataset.sgApprove);
   const change = e.target.closest('[data-sg-change]');
@@ -433,7 +458,7 @@ function slideTo(i) {
 document.addEventListener('pointerdown', (e) => {
   const el = document.getElementById('sgDeck');
   if (!el || !el.contains(e.target)) return;
-  if (e.target.closest('button, input, textarea, li, select')) return;
+  if (e.target.closest('button, input, textarea, li, select, .sg-picker')) return;
   const list = e.target.closest('.sg-list');
   if (list && !list.querySelector('.sg-card.open')) listDrag = { list, y0: e.clientY };
   slideDrag = { x0: e.clientX, y0: e.clientY, px: 0, on: false, moved: false, el };
