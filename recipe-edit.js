@@ -7,10 +7,10 @@
 // ---------------------------------------------------------------
 const RI_SELECT = 'id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional';
 
-// Only a household's own recipe can be changed, and only by its creator or the household owner (the database
-// policies enforce this). Shared recipes have no household, so they are read-only.
+// Any member of the household (family, cooks, owner) can edit its recipes, and the steps. A shared recipe can't be
+// changed itself, so editing it first makes the household's own copy (see copyAndEdit).
 function canEditRecipe(row) {
-  return !!hh && !!row.household_id && (row.created_by === session.user.id || !!hh.owner);
+  return !!hh;
 }
 
 // An amount is text such as "750 g" or "1 clove". Split it into a number and the rest, or null when there is no number ("to taste").
@@ -122,7 +122,7 @@ document.addEventListener('click', (e) => {
   const rec = card && recipeOfCard(card);
   if (!rec || !canEditRecipe(rec.row)) return;
   const act = btn.dataset.ingAct;
-  if (act === 'toggle') return toggleIngEdit(card);
+  if (act === 'toggle') return rec.row.household_id ? toggleIngEdit(card) : copyAndEdit(card, rec);
   if (act === 'add') return addIng(card, rec);
   const li = btn.closest('li[data-ing]');
   const ing = li && rec.ings.find((i) => i.id === li.dataset.ing);
@@ -181,8 +181,30 @@ async function addIng(card, rec) {
   refreshRecipeStatus(rec);
 }
 
-// The steps card: a sheet that rises over the screen with the recipe's steps, one per line.
-function openRecipeSteps(id) {
+// A shared recipe becomes the household's own copy, which is then the one that gets edited. Returns the copy's id.
+async function makeHouseholdCopy(row) {
+  const { data, error } = await sb.rpc('copy_recipe', { src: row.id, hid: hh.id });
+  if (error) { setProblem(error); return null; }
+  return data;
+}
+
+// Editing a shared recipe's ingredients: copy it, then reload the screen with the copy open and in edit mode.
+async function copyAndEdit(card, rec) {
+  const id = await makeHouseholdCopy(rec.row);
+  if (!id) return;
+  if (rec.screen === 'recipes') openRecipeId = id;
+  else pickerState.openId = id;
+  await loadTab({ quiet: true });
+  const el = document.querySelector(`[data-recipe="${id}"], [data-pick="${id}"]`);
+  if (el) toggleIngEdit(el, true);
+}
+
+// The field the steps are kept in: English or Arabic, following the language on screen.
+function stepsField() { return lang === 'ar' ? 'steps_ar' : 'steps_en'; }
+
+// The steps card: a sheet that rises over the screen with the recipe's steps, one per line. Anyone in the household can
+// edit them, using the Edit button in the sheet.
+function openRecipeSteps(id, startEdit) {
   const row = cache.recipeList && cache.recipeList.rows.find((r) => r.id === id);
   if (!row) return;
   let sheet = document.getElementById('stepsSheet');
@@ -192,20 +214,67 @@ function openRecipeSteps(id) {
     sheet.innerHTML = `<div class="steps-scrim" data-steps-close></div>
       <div class="steps-sheet" role="dialog" aria-modal="true">
         <div class="steps-grab"></div>
-        <div class="steps-head"><h2></h2><button type="button" class="steps-done" data-steps-close>${esc(t('done'))}</button></div>
+        <div class="steps-head"><h2></h2>
+          <div class="steps-head-actions">
+            <button type="button" class="steps-edit-btn" data-steps-act="edit">${esc(t('edit'))}</button>
+            <button type="button" class="steps-done" data-steps-close>${esc(t('done'))}</button>
+          </div></div>
         <ol class="steps-list"></ol>
+        <div class="steps-editor">
+          <textarea class="steps-text" rows="8" aria-label="${esc(t('steps'))}"></textarea>
+          <p class="muted steps-hint">${esc(t('stepsHint'))}</p>
+          <div class="steps-editor-actions">
+            <button type="button" class="btn secondary" data-steps-act="cancel">${esc(t('cancel'))}</button>
+            <button type="button" class="btn" data-steps-act="save">${esc(t('save'))}</button>
+          </div>
+        </div>
       </div>`;
-    sheet.addEventListener('click', (e) => { if (e.target.closest('[data-steps-close]')) closeRecipeSteps(); });
+    sheet.addEventListener('click', (e) => {
+      if (e.target.closest('[data-steps-close]')) return closeRecipeSteps();
+      const act = e.target.closest('[data-steps-act]');
+      if (!act) return;
+      const r = cache.recipeList && cache.recipeList.rows.find((x) => x.id === sheet.dataset.recipe);
+      if (!r) return;
+      if (act.dataset.stepsAct === 'edit') return showStepsEditor(sheet, r);
+      if (act.dataset.stepsAct === 'cancel') return openRecipeSteps(r.id);
+      if (act.dataset.stepsAct === 'save') return saveSteps(r, sheet.querySelector('.steps-text').value);
+    });
     document.body.appendChild(sheet);
   }
+  sheet.dataset.recipe = id;
+  sheet.classList.remove('steps-editing');
   sheet.querySelector('h2').textContent = nameOf(row.title_en, row.title_ar);
-  const steps = (nameOf(row.steps_en, row.steps_ar) || '').split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  sheet.querySelector('.steps-edit-btn').hidden = !canEditRecipe(row);
+  const steps = (row[stepsField()] || '').split(/\n+/).map((s) => s.trim()).filter(Boolean);
   sheet.querySelector('.steps-list').innerHTML = steps.length
     ? steps.map((s) => `<li><p>${esc(s)}</p></li>`).join('')
     : `<p class="muted">${esc(t('noSteps'))}</p>`;
   requestAnimationFrame(() => sheet.classList.add('on'));
+  if (startEdit) showStepsEditor(sheet, row);
+}
+function showStepsEditor(sheet, row) {
+  sheet.querySelector('.steps-text').value = row[stepsField()] || '';
+  sheet.classList.add('steps-editing');
+  sheet.querySelector('.steps-text').focus();
+}
+// Saving edits the household's copy when the recipe is shared, so the change is the household's own.
+async function saveSteps(row, text) {
+  const field = stepsField();
+  if (!row.household_id) {
+    const id = await makeHouseholdCopy(row);
+    if (!id) return;
+    const { error } = await sb.from('recipes').update({ [field]: text }).eq('id', id);
+    if (error) return setProblem(error);
+    openRecipeId = id;
+    await loadTab({ quiet: true });
+    return openRecipeSteps(id);
+  }
+  const { error } = await sb.from('recipes').update({ [field]: text }).eq('id', row.id);
+  if (error) return setProblem(error);
+  row[field] = text;
+  openRecipeSteps(row.id);
 }
 function closeRecipeSteps() {
   const sheet = document.getElementById('stepsSheet');
-  if (sheet) sheet.classList.remove('on');
+  if (sheet) sheet.classList.remove('on', 'steps-editing');
 }

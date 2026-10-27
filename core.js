@@ -138,7 +138,7 @@ function activeRole() { return viewRole || (hh ? hh.role : 'member'); }
 // The tabs each role sees. Settings is always there too, added in drawerHtml.
 const ROLE_TABS = {
   member: ['home', 'today', 'recipes', 'kitchen'],
-  helper: ['home', 'planner', 'kitchen'],
+  helper: ['home', 'planner', 'recipes', 'kitchen'],
 };
 const can = {
   stock: () => !!hh && activeRole() === 'helper',     // cooks change the kitchen stock

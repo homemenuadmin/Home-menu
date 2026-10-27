@@ -460,3 +460,13 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .steps-list li:last-child { border-bottom: 0; }
 .steps-list p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .steps-sheet, .steps-scrim { transition-duration: 1ms !important; } }
+/* Steps editing: the list gives way to a text box while the sheet is in edit mode. */
+.steps-head-actions { display: flex; align-items: center; gap: 14px; }
+.steps-edit-btn { border: 0; background: transparent; font: inherit; font-size: 15px; color: var(--teal, #0F766E); font-weight: 600; cursor: pointer; }
+.steps-editor { display: none; overflow: auto; padding: 12px 20px 28px; }
+#stepsSheet.steps-editing .steps-editor { display: block; }
+#stepsSheet.steps-editing .steps-list, #stepsSheet.steps-editing .steps-edit-btn { display: none; }
+.steps-text { width: 100%; box-sizing: border-box; min-height: 180px; padding: 10px 12px; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; font: inherit; font-size: 15px; line-height: 1.5; background: var(--bg, #FFF8F0); color: var(--ink, #1F2937); resize: vertical; }
+.steps-hint { margin: 6px 2px 12px; font-size: 13px; }
+.steps-editor-actions { display: flex; gap: 10px; }
+.steps-editor-actions .btn { flex: 1; margin: 0; }

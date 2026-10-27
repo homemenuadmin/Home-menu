@@ -63,7 +63,7 @@ async function screenToday() {
       .eq('household_id', hh.id)
       .gte('meal_date', today)
       .lte('meal_date', last),
-    sb.from('recipes').select('id, household_id, created_by, title_en, title_ar, minutes').order('title_en'),
+    sb.from('recipes').select('id, household_id, created_by, copied_from, title_en, title_ar, minutes').order('title_en'),
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
     sb.from('rules').select('kind, ingredient_key').eq('household_id', hh.id),
@@ -114,7 +114,10 @@ function buildPickerRecipes(recipes, ings, pantry, rules) {
   const donts = new Set(rules.filter((r) => r.kind === 'dont' && r.ingredient_key).map((r) => r.ingredient_key));
   const ingMap = {};
   for (const i of ings) (ingMap[i.recipe_id] = ingMap[i.recipe_id] || []).push(i);
+  // A shared recipe is left out once the household has its own copy, which stands in for it.
+  const copied = new Set(recipes.map((r) => r.copied_from).filter(Boolean));
   return recipes
+    .filter((r) => !(r.household_id === null && copied.has(r.id)))
     .map((r) => {
       const list = ingMap[r.id] || [];
       const missing = list.filter((i) => !i.optional && !inStock.has(i.ingredient_key)).length;

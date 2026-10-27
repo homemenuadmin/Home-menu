@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------
 async function screenRecipes() {
   const [rec, ings, avail, pantry, rules] = await Promise.all([
-    sb.from('recipes').select('id, household_id, created_by, title_en, title_ar, minutes, meal_slot, steps_en, steps_ar').order('title_en'),
+    sb.from('recipes').select('id, household_id, created_by, copied_from, title_en, title_ar, minutes, meal_slot, steps_en, steps_ar').order('title_en'),
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('recipe_availability').select('recipe_id, required_count, in_stock_count').eq('household_id', hh.id),
     sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
@@ -24,9 +24,12 @@ async function screenRecipes() {
   for (const i of ings.data) (ingMap[i.recipe_id] = ingMap[i.recipe_id] || []).push(i);
   cache.recipeIngredients = ingMap;
 
+  // A shared recipe is hidden once the household has its own copy, which stands in for it.
+  const copied = new Set(rec.data.map((r) => r.copied_from).filter(Boolean));
+  const visible = rec.data.filter((r) => !(r.household_id === null && copied.has(r.id)));
   // Recipes with an ingredient the household has ruled out are hidden.
-  const rows = rec.data.filter((r) => !(ingMap[r.id] || []).some((i) => donts.has(i.ingredient_key)));
-  const hidden = rec.data.length - rows.length;
+  const rows = visible.filter((r) => !(ingMap[r.id] || []).some((i) => donts.has(i.ingredient_key)));
+  const hidden = visible.length - rows.length;
   cache.recipeList = { rows, inStock, availMap, ingMap };
 
   let html = `<input id="rsearch" placeholder="${esc(t('search'))}" value="${esc(recipeFilter)}" oninput="filterRecipes(this.value)">`;
