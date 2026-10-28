@@ -130,7 +130,6 @@ function kitchenAlertsHtml(low) {
 // Opens the Meals tab on today, with the add-a-meal form already showing for dinner.
 async function homeAddMeal() {
   tab = 'today';
-  drawerOpen = false;
   mealsDay = todayIso();
   mealEditId = null;
   mealForm = 'dinner';

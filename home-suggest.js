@@ -1,15 +1,13 @@
-// Home suggestions for the family, laid out as in the approved mockup (Mock-ups/home-suggestions-mockup.html):
-// a row of meal cards to swipe between, each with a stack of ideas. Approve sends the others away and pins the
-// approved meal; "None of these?" opens the picker. Ideas come from the household's recipes (ready ones first)
+// Home suggestions for the family, laid out as in the approved mockup (Mock-ups/home-cards-mockup.html):
+// one meal time at a time, its ideas as a stack of cards to swipe through (a card swiped away keeps a sliver to swipe back).
+// Approve sends the others away and pins the approved meal; tap a card to open it; Edit changes its name, minutes and ingredients.
+// "None of these?" opens the picker. The Breakfast / Lunch / Dinner bar grows out of the Home tab. Ideas come from the household's recipes (ready ones first)
 // and, in the background, from the AI, which is asked for dishes that use what is in the kitchen.
 // Part of Home Menu. Loaded by index.html after home.js.
 
 const aiAsked = new Set();                 // AI ideas asked for in this page visit, so a failed request isn't repeated
-const deck = { cur: 0, front: {} };        // the meal card in front, and which idea is in front of each meal
+const deck = { cur: 0, ui: {} };           // which meal time is in front (index into SLOTS), and each meal time's card state
 let deckBusy = false;                      // an approve is in progress
-let deckRO = null;                         // keeps the stacks the right size
-let slideDrag = null;                      // a sideways drag between meal cards
-let listDrag = null;                       // a drag over a stack, to move through it
 let suppressClick = false;                 // a drag just ended, so the click that follows is ignored
 
 // Everything the Home screen needs: today's meals, recipes, the kitchen and the household's rules.
@@ -153,6 +151,7 @@ async function fetchAiIdeas(slot, plan) {
   if (added) await loadTab({ quiet: true });
 }
 
+
 // What one meal card holds: the approved meal alone, or the ideas for it, best first.
 function slotState(plan, slot) {
   const onSlot = plan.meals.filter((m) => m.meal_slot === slot);
@@ -166,255 +165,219 @@ function slotState(plan, slot) {
   return { slot, approved, items };
 }
 
+// The colour a dish's picture takes, from its id, so it stays the same.
 function colorFor(id) {
   return PICK_COLORS[[...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % PICK_COLORS.length];
 }
-
-function readyTagHtml(r) {
-  if (r.source === 'ai') return `<span class="sg-tag ai">${esc(t('aiIdea'))}</span>`;
+function kindChipHtml(r) {
+  if (!r) return '';
+  if (r.source === 'ai') return `<span class="dk-chip ai">${esc(t('aiIdea'))}</span>`;
   return r.ready
-    ? `<span class="sg-tag ok">${esc(t('haveEverything'))}</span>`
-    : `<span class="sg-tag warn">${esc(t('missing'))} ${r.missing}</span>`;
+    ? `<span class="dk-chip ready">${esc(t('haveEverything'))}</span>`
+    : `<span class="dk-chip miss">${esc(t('missing'))} ${r.missing}</span>`;
 }
 
-// One idea in the deck. Its ingredients are the real editor's rows, so Edit works as it does in the picker.
-function cardHtml(item, pinned) {
+// Each meal time's state on screen: which card is in front, whether it is open, and an edit in progress.
+function ui(slot) {
+  return deck.ui[slot] || (deck.ui[slot] = { idx: 0, open: false, editing: false, draft: null });
+}
+function curSlot() { return SLOTS[deck.cur]; }
+
+// One idea in the stack. Its ingredients come from the real recipe, so Edit saves to it.
+function cardHtml(item, i, n, pinned, front, u) {
   const { meal: m, r } = item;
   const name = r ? nameOf(r.title_en, r.title_ar) : (m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '');
-  const letter = esc((name || '?').trim().charAt(0).toUpperCase());
   const color = colorFor(r ? r.id : m.recipe_id || m.id);
-  const desc = r && r.desc ? `<p class="sg-desc">${esc(r.desc)}</p>` : '';
-  const body = r
-    ? `${ingHeadHtml(r)}<ul class="clean pick-ings">${r.ings.map((i, idx) => ingLiHtml(i, idx)).join('')}</ul>${ingAddHtml(r)}`
-    : '';
-  const footer = pinned
-    ? (r ? `<button class="sg-toggle" data-sg-toggle><span class="when-read">${esc(t('ingredients'))}</span><span class="when-edit">${esc(t('done'))}</span></button>` : '')
-    : `<button class="btn sg-approve" data-sg-approve="${m.id}">${esc(t('approve'))}</button>`;
-  return `<div class="pick-item sg-card${pinned ? ' pinned' : ''}" data-sg-card="${m.id}"${r ? ` data-pick="${r.id}"` : ''}>
-    <div class="sg-img" style="background:${color}">
-      <button class="sg-back" data-sg-close>‹ ${esc(t('back'))}</button>
-      <button class="sg-back sg-change" data-sg-change="${m.id}">${esc(t('changeMeal'))}</button>
-      <span class="sg-letter" aria-hidden="true">${letter}</span>
-    </div>
-    <div class="sg-body">
-      <div class="sg-top"><strong>${esc(name)}</strong>${r ? `<small>${r.minutes} min</small>` : ''}</div>
-      ${r ? readyTagHtml(r) : ''}
-      ${desc}
-      <div class="pick-details"><div class="pick-details-inner sg-more">${body}</div></div>
-      ${footer}
-    </div>
+  const letter = esc((name || '?').trim().charAt(0).toUpperCase());
+  const isOpen = front && u.open;
+  const isEditing = front && u.editing && u.draft;
+  const top = `<span>${pinned ? esc(t(m.meal_slot || curSlot())) : esc(t('dkIdeaOf').replace('{n}', i + 1).replace('{m}', n))}</span>` +
+    `<span class="dk-status${pinned ? ' ok' : ''}">${esc(pinned ? t('approved') : t('suggested'))}</span>`;
+  const ings = r ? r.ings.map((g) => `<div class="dk-ing"><span>${esc(nameOf(g.name_en, g.name_ar))}</span>${
+    g.optional ? `<b class="opt">${esc(t('optional'))}</b>` : ingInStock(g) ? '<b>✓</b>' : `<b class="no">${esc(t('missing'))}</b>`
+  }</div>`).join('') : '';
+  const body = isEditing ? '' :
+    `<div class="dk-title">${esc(name)}</div>
+     <div class="dk-meta"><span class="dk-chip">${r ? r.minutes : ''} min</span>${kindChipHtml(r)}</div>
+     ${r && r.desc ? `<p class="dk-desc">${esc(r.desc)}</p>` : ''}
+     <div class="dk-tile">${letter}</div>
+     <div class="dk-ings"><div class="dk-h">${esc(t('ingredients'))}</div>${ings}</div>`;
+  const primary = pinned
+    ? `<button class="dk-btn soft" data-dk-act="change" data-id="${m.id}">${esc(t('changeMeal'))}</button>`
+    : `<button class="dk-btn" data-dk-act="approve" data-id="${m.id}">${esc(t('approve'))}</button>`;
+  const foot = isEditing ? '' :
+    `<div class="dk-foot dk-closed">${primary}</div>` +
+    `<div class="dk-foot dk-openonly">${primary}<button class="dk-btn ghost" data-dk-act="edit">${esc(t('edit'))}</button><button class="dk-btn ghost" data-dk-act="close">${esc(t('close'))}</button></div>`;
+  return `<article class="dk-card${pinned ? ' pinned' : ''}${isOpen ? ' open' : ''}${isEditing ? ' editing' : ''}" data-dk-card="${m.id}" data-i="${i}" style="--accent:${color}">
+    <div class="dk-top">${top}</div>
+    ${body}
+    ${isEditing ? `<div class="dk-title dk-edit-title">${esc(t('dkEditTitle'))}</div>${editorHtml(u.draft)}` : ''}
+    <div class="dk-spacer"></div>${foot}
+  </article>`;
+}
+
+// The editor inside an open card: name, minutes and the ingredient names.
+function editorHtml(d) {
+  return `<div class="dk-editor">
+    <label>${esc(t('dkMealName'))}<input data-dk-f="title" value="${esc(d.title)}"></label>
+    <label>${esc(t('dkMinutes'))}<input data-dk-f="min" type="number" inputmode="numeric" value="${esc(d.min)}"></label>
+    <div class="dk-h">${esc(t('ingredients'))}</div>
+    ${d.ings.map((g, i) => `<div class="dk-erow"><input data-dk-ing="${i}" value="${esc(g.name)}" aria-label="${esc(t('ingredients'))} ${i + 1}">
+      <button type="button" data-dk-act="rm" data-i="${i}" aria-label="${esc(t('removeIngredient'))}">×</button></div>`).join('')}
+    <button type="button" class="dk-add" data-dk-act="add-ing">+ ${esc(t('addIngredient'))}</button>
+    <div class="dk-bar2"><button type="button" class="dk-btn" data-dk-act="save">${esc(t('save'))}</button>
+      <button type="button" class="dk-btn ghost" data-dk-act="cancel-edit">${esc(t('cancel'))}</button></div>
   </div>`;
 }
 
-// The picker "None of these?" opens inside the meal card: every recipe for the meal, with Use this.
-function pickerHtml(slot) {
-  const rows = slotRecipes(slot);
-  const list = rows.length
-    ? rows.map((r) => `<div class="sg-pick-row">
-        <span class="sg-pick-thumb" style="background:${colorFor(r.id)}">${esc((nameOf(r.title_en, r.title_ar) || '?').trim().charAt(0).toUpperCase())}</span>
-        <div class="sg-row-main"><strong>${esc(nameOf(r.title_en, r.title_ar))}</strong><small>${r.minutes} min</small>${readyTagHtml(r)}</div>
-        <button class="btn small" data-sg-use="${r.id}" data-slot="${slot}">${esc(t('useThis'))}</button>
-      </div>`).join('')
-    : `<p class="muted">${esc(t('noRecipes'))}</p>`;
-  return `<div class="sg-pick-list">${list}</div>
-    <button class="btn secondary sg-cancel" data-sg-close-picker>${esc(t('cancel'))}</button>`;
-}
+// The shape of each meal time as text, so a redraw only happens when something in that meal time changed.
+function slotSig(plan, slot) { return JSON.stringify(slotState(plan, slot)); }
 
-function slotHtml(st) {
-  const cards = st.items.map((it) => cardHtml(it, !!st.approved)).join('');
-  const empty = st.items.length ? '' : `<p class="muted sg-empty">${esc(t('noSuggestions'))}</p>`;
-  const status = st.approved
-    ? `<span class="status ok">${esc(t('approved'))}</span>`
-    : `<span class="status">${esc(t('suggested'))}</span>`;
-  const pill = st.approved ? '' : `<button class="sg-pill" data-sg-pick aria-expanded="false">${esc(t('noneOfThese'))}</button>`;
-  return `<section class="sg-slot${st.approved ? ' approved' : ''}" data-sg-slot="${st.slot}">
-    <div class="sg-head"><h3>${esc(t(st.slot))}</h3>${status}</div>
-    <div class="sg-list">${cards}${empty}</div>
-    ${pill}
-    <div class="sg-picker"><div class="sg-picker-box">${pickerHtml(st.slot)}</div></div>
-  </section>`;
-}
-
-// The HTML of each meal section and the kitchen alerts, as they are drawn. Compared with the last draw to find what changed.
+// The HTML of the kitchen alerts, and each meal time's shape. Compared with the last draw to find what changed.
 function deckParts(plan) {
   return {
-    slots: Object.fromEntries(SLOTS.map((s) => [s, slotHtml(slotState(plan, s))])),
+    slots: Object.fromEntries(SLOTS.map((s) => [s, slotSig(plan, s)])),
     alerts: kitchenAlertsHtml(plan.low),
   };
 }
 
-// Swaps only the meal sections that changed, so the rest of the row is not rebuilt and nothing replays.
+// Redraws the current meal's cards if that meal changed; other meal times only update the bar's marks.
 function patchDeck(plan, slots) {
-  const el = document.getElementById('sgDeck');
-  if (!el) return false;
-  el.classList.add('instant');
-  slots.forEach((slot) => {
-    const old = el.querySelector(`[data-sg-slot="${slot}"]`);
-    if (old) old.outerHTML = slotHtml(slotState(plan, slot));
-  });
-  layoutDeck();
-  paintStacks();
-  void el.offsetHeight;
-  el.classList.remove('instant');
-  if (deckRO) el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
+  if (!document.getElementById('sgStage')) return false;
+  if (slots.includes(curSlot())) {
+    if (ui(curSlot()).editing) return true;   // an edit in progress is kept; the new data shows when it ends
+    renderStage();
+  }
+  drawMealTimes();
   return true;
 }
 
-// The meal cards in a row, with dots under them, as in the mockup.
+// The home markup: the deck of cards for the current meal, and the "None of these?" button under it.
 function deckHtml(plan) {
-  const slots = SLOTS.map((slot) => slotHtml(slotState(plan, slot))).join('');
-  const dots = SLOTS.map((s, i) => `<button data-sg-go="${i}" aria-label="${esc(t(s))}"></button>`).join('');
-  return `<div class="sg-deck" id="sgDeck">${slots}</div>
-    <div class="sg-dots" id="sgDots">${dots}</div>
-    <p class="sg-hint">${esc(t('sgHint'))}</p>`;
+  return `<div class="dk-deck" id="sgDeck">
+      <div class="dk-stage" id="sgStage"></div>
+      <div class="dk-sheet" id="sgSheet" aria-hidden="true"></div>
+    </div>
+    <div class="dk-none-row" id="sgNoneRow"><button type="button" class="dk-none" id="sgNone" data-dk-act="choose">${esc(t('noneOfThese'))}</button></div>`;
 }
 
-// Places the meal cards in the row: the current one in front, its neighbours smaller and behind.
-function layoutDeck() {
-  const el = document.getElementById('sgDeck');
-  if (!el) return;
-  const w = el.clientWidth || 1;
-  const px = slideDrag ? slideDrag.px : 0;
-  el.querySelectorAll('.sg-slot').forEach((s, i) => {
-    const off = i - deck.cur - px / w;
-    const a = Math.abs(off);
-    s.style.transform = `translateX(-50%) translateX(${off * 62}%) scale(${Math.max(0.78, 1 - a * 0.14)}) rotateY(${-off * 14}deg)`;
-    s.style.zIndex = String(20 - Math.round(a * 10));
-    s.style.opacity = a > 1.7 ? '0' : String(Math.max(0.35, 1 - a * 0.35));
-    s.classList.toggle('current', Math.round(off) === 0);
+// ----- the stack: the front card full size, the next ones behind it, the one swiped away kept as a sliver -----
+// As in the approved mockup: a card swiped away slides off over the edge and keeps a sliver, so it can be swiped back.
+const PEEK = 16;
+function pose(off, sw, dx) {
+  const cw = sw - 40, moves = off === 0 || off === -1;     // only the front card and the one swiped away follow the finger
+  const x = off === 0 ? 0 : off < 0 ? -(cw + 20 - PEEK) : off * 10;
+  const scale = off > 0 ? 1 - off * 0.035 : 1;
+  return 'translateX(' + (x + (moves && dx ? dx : 0)) + 'px) scale(' + scale + ')';
+}
+
+function frontIndex() {
+  const stage = document.getElementById('sgStage');
+  return stage && stage.dataset.pinned === '1' ? 0 : ui(curSlot()).idx;
+}
+
+function layoutCards(animate, skip, dx) {
+  const stage = document.getElementById('sgStage');
+  if (!stage || !lastPlan) return;
+  const u = ui(curSlot()), idx = frontIndex(), sw = stage.clientWidth || 340;
+  stage.querySelectorAll('.dk-card').forEach((el, i) => {
+    if (el === skip) return;
+    const off = i - idx, expanded = off === 0 && u.open;
+    el.style.transition = animate ? 'transform .45s cubic-bezier(.16,1,.3,1), opacity .3s ease' : 'none';
+    el.style.transitionDelay = '0ms';
+    el.style.transform = expanded ? 'none' : pose(off, sw, dx);
+    el.style.zIndex = String(expanded ? 30 : off === 0 ? 30 : off < 0 ? 40 : 26 - off);
+    el.style.opacity = (!expanded && (off > 2 || off < -1)) ? '0' : '1';
   });
-  document.querySelectorAll('#sgDots button').forEach((d, k) => d.classList.toggle('on', k === deck.cur));
+  const none = document.getElementById('sgNoneRow');
+  if (none) none.classList.toggle('hide', !!slotState(lastPlan, curSlot()).approved || u.open);
 }
 
-// Places each meal's ideas: a stack with the front one full size, the others as edges behind it.
-// An approved meal shows as one pinned card. An open card fills the stack.
-function paintStacks() {
-  document.querySelectorAll('#sgDeck .sg-list').forEach((list) => {
-    const section = list.closest('.sg-slot');
-    const cards = [...list.querySelectorAll('.sg-card')];
-    const H = list.clientHeight;
-    if (!cards.length || !H) return;
-    const cardH = Math.max(200, H - 72);
-    const open = cards.find((c) => c.classList.contains('open'));
-
-    if (section.classList.contains('approved')) {
-      cards.forEach((c) => {
-        if (!c.classList.contains('pinned')) {
-          // Not the approved one: it has swiped away and stays out of sight.
-          c.style.opacity = '0';
-          c.style.transform = 'translateX(-130%) rotate(-6deg)';
-          c.style.zIndex = '1';
-          return;
-        }
-        const isOpen = c === open;
-        c.style.top = isOpen ? '0px' : '20px';
-        c.style.height = (isOpen ? H : cardH) + 'px';
-        c.style.transform = 'none';
-        c.style.opacity = '1';
-        c.style.zIndex = '30';
-        c.classList.add('front');
-      });
-      return;
-    }
-
-    const front = Math.min(deck.front[section.dataset.sgSlot] || 0, cards.length - 1);
-    cards.forEach((c, i) => {
-      const k = i - front, a = Math.abs(k);
-      c.classList.toggle('front', a === 0);
-      if (open) {
-        c.style.top = c === open ? '0px' : '20px';
-        c.style.height = (c === open ? H : cardH) + 'px';
-        c.style.transform = 'none';
-        c.style.opacity = c === open ? '1' : '0';
-        c.style.zIndex = c === open ? '30' : '1';
-        return;
-      }
-      c.style.height = cardH + 'px';
-      c.style.top = (20 + k * 16) + 'px';
-      c.style.transform = `scale(${Math.max(0.8, 1 - a * 0.05)})`;
-      c.style.opacity = a > 3 ? '0' : String(1 - a * 0.22);
-      c.style.zIndex = String(20 - a);
+// Draws the current meal's cards, and places them. Opts: enter (slide direction when the meal changes),
+// arrive (the approved card settles in), cardsIn (after Change, the ideas slide back in).
+function renderStage(opts) {
+  opts = opts || {};
+  const stage = document.getElementById('sgStage');
+  if (!stage || !lastPlan) return;
+  const st = slotState(lastPlan, curSlot()), u = ui(curSlot());
+  const pinned = !!st.approved, items = st.items;
+  u.idx = Math.min(u.idx, Math.max(0, items.length - 1));
+  stage.dataset.pinned = pinned ? '1' : '0';
+  stage.className = 'dk-stage' + (u.open ? ' open-card' : '') + (opts.enter ? ' enter-' + opts.enter : '');
+  stage.innerHTML = items.length
+    ? items.map((it, i) => cardHtml(it, i, items.length, pinned, i === (pinned ? 0 : u.idx), u)).join('')
+    : `<p class="muted dk-empty">${esc(t('noSuggestions'))}</p>`;
+  layoutCards(false);
+  const first = pinned ? 0 : u.idx;
+  if (opts.arrive && pinned) { const c = stage.querySelector('.dk-card'); if (c) c.classList.add('arrive'); }
+  if (opts.cardsIn && !pinned) {
+    stage.querySelectorAll('.dk-card').forEach((el, i) => {
+      if (i === first) return;
+      el.style.transition = 'none';
+      el.style.transform = `translateX(${stage.clientWidth + 60}px) rotate(6deg)`;
+      el.style.opacity = '0';
     });
-  });
+    void stage.offsetWidth;
+    layoutCards(true);
+  }
+  drawMealTimes();
 }
 
-// The picker grows out of the "None of these?" pill into the meal card, as in the mockup.
-// Geometry is measured from the card's inside edge; the picker starts where the pill is, then grows.
-function pillGeom(section) {
-  const sl = section.getBoundingClientRect();
-  const pb = section.querySelector('.sg-pill').getBoundingClientRect();
-  return { left: pb.left - sl.left - section.clientLeft, top: pb.top - sl.top - section.clientTop, width: pb.width, height: pb.height };
-}
-function finalGeom(section) {
-  const head = section.querySelector('.sg-head');
-  const top = head.offsetTop + head.offsetHeight + 8;
-  return { left: 0, top, width: section.clientWidth, height: section.clientHeight - top };
-}
-function setGeom(section, g) {
-  const p = section.querySelector('.sg-picker');
-  p.style.left = g.left + 'px';
-  p.style.top = g.top + 'px';
-  p.style.width = g.width + 'px';
-  p.style.height = g.height + 'px';
-}
-function openPicker(section) {
-  const p = section.querySelector('.sg-picker');
-  p.style.transition = 'none';
-  setGeom(section, pillGeom(section));
-  void p.offsetHeight;          // let the browser draw the pill's shape before it grows
-  p.style.transition = '';
-  section.classList.add('picking');
-  section.querySelector('.sg-pill').setAttribute('aria-expanded', 'true');
-  setGeom(section, finalGeom(section));
-}
-function closePicker(section) {
-  if (!section) return;
-  setGeom(section, pillGeom(section));
-  section.classList.remove('picking');
-  section.querySelector('.sg-pill').setAttribute('aria-expanded', 'false');
+// Opens a card in place, or closes it. Closing an edit takes the editor out of the card.
+function setOpen(on) {
+  const slot = curSlot(), u = ui(slot);
+  if (u.open === on) return;
+  u.open = on;
+  if (!on && u.editing) { u.editing = false; u.draft = null; return renderStage(); }
+  const stage = document.getElementById('sgStage');
+  if (!stage) return;
+  stage.classList.toggle('open-card', on);
+  const el = stage.querySelector('.dk-card');
+  if (el) el.classList.toggle('open', on);
+  layoutCards(true);
 }
 
-function stepStack(section, dir) {
-  const list = section.querySelector('.sg-list');
-  if (list.querySelector('.sg-card.open')) return;
-  const n = list.querySelectorAll('.sg-card').length;
-  const key = section.dataset.sgSlot;
-  const next = Math.max(0, Math.min(n - 1, (deck.front[key] || 0) + dir));
-  if (next === (deck.front[key] || 0)) return;
-  deck.front[key] = next;
-  paintStacks();
+function goTo(n) {
+  const st = slotState(lastPlan, curSlot()), u = ui(curSlot());
+  if (st.approved || u.open || n < 0 || n >= st.items.length || n === u.idx) return;
+  u.idx = n;
+  layoutCards(true);
 }
 
-// Runs after the Home screen is drawn: lays out the deck and keeps the stacks sized to their lists.
+// Runs after the Home screen is drawn: places the current meal's cards.
 function initDeck() {
-  const el = document.getElementById('sgDeck');
-  if (!el) return;
-  // A redraw (after Approve or Change) builds new elements. Place them at once, so they don't slide in from their defaults.
-  el.classList.add('instant');
-  layoutDeck();
-  paintStacks();
-  void el.offsetHeight;
-  el.classList.remove('instant');
-  if (deckRO) deckRO.disconnect();
-  deckRO = new ResizeObserver(() => paintStacks());
-  el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
-  // A mouse wheel or trackpad moves one card per gesture, the same as a swipe, and never scrolls the page.
-  let wheelLock = false;
-  el.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    if (wheelLock || e.target.closest('.sg-picker')) return;
-    const dy = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : 0;
-    const dx = dy === 0 ? e.deltaX : 0;
-    if (!dx && !dy) return;
-    wheelLock = true;
-    setTimeout(() => { wheelLock = false; }, 380);
-    const list = e.target.closest('.sg-list');
-    if (list && dy) return stepStack(list.closest('.sg-slot'), dy > 0 ? 1 : -1);
-    if (dx) slideTo(deck.cur + (dx > 0 ? 1 : -1));
-  }, { passive: false });
+  if (!document.getElementById('sgStage')) return;
+  const arrive = deck.arriveNext, cardsIn = deck.cardsInNext;
+  deck.arriveNext = deck.cardsInNext = false;
+  renderStage({ arrive, cardsIn });
 }
 
-// The Home data on screen. Approve, change and use change it at once, redraw, and save in the background.
+// ----- the meal times bar: grows out of the Home tab, as in the approved mockup -----
+function placeMealTimes(bar) {
+  const home = document.querySelector('#nav [data-tab="home"]');
+  if (!home) return;
+  const hb = home.getBoundingClientRect();
+  bar.style.setProperty('--hl', Math.round(hb.left) + 'px');
+  bar.style.setProperty('--hw', Math.round(hb.width) + 'px');
+  const last = bar.lastElementChild;
+  if (last) bar.style.setProperty('--ow', (last.offsetLeft + last.offsetWidth + 5) + 'px');
+}
+
+function drawMealTimes() {
+  const bar = document.getElementById('mtBar');
+  if (!bar) return;
+  const on = tab === 'home' && !!lastPlan && !!document.getElementById('sgStage');
+  if (!lastPlan) return;
+  bar.innerHTML = SLOTS.map((s, i) => `<button class="mt-sub${i === deck.cur ? ' on' : ''}${slotState(lastPlan, s).approved ? ' done' : ''}" data-dk-slot="${i}" role="tab" aria-selected="${i === deck.cur}">${esc(t(s))}</button>`).join('');
+  placeMealTimes(bar);
+  if (on && !bar.classList.contains('show')) {
+    requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.add('show')));
+  } else if (!on) {
+    bar.classList.remove('show');
+  }
+}
+
+// ----- the Home screen data -----
 let lastPlan = null;
 
 function homeTimes() {
@@ -451,56 +414,59 @@ function saveMeal(id, fields, revert) {
   });
 }
 
-// Approve: the other ideas slide away, the approved card moves to its pinned place, then the screen is drawn
-// from the new data. The save runs alongside the animation, so the card doesn't wait for the database.
+// Approve: the other ideas slide away, the approved card is pinned, then the screen is drawn from the new data.
+// The save runs alongside the animation, so the card doesn't wait for the database.
 function sgApprove(mealId) {
   if (deckBusy) return;
-  const card = document.querySelector(`[data-sg-card="${mealId}"]`);
+  const stage = document.getElementById('sgStage');
+  const card = stage && stage.querySelector(`[data-dk-card="${mealId}"]`);
   if (!card) return;
   deckBusy = true;
   if (navigator.vibrate) navigator.vibrate(12);   // a short tap of feedback on Android
   const m = lastPlan && lastPlan.meals.find((x) => x.id === mealId);
   const was = m ? m.status : 'suggested';
+  const u = ui(curSlot());
+  u.open = false; u.editing = false; u.draft = null;
   setLocalStatus(mealId, 'approved');
   saveMeal(mealId, { status: 'approved' }, () => setLocalStatus(mealId, was));
 
-  const list = card.closest('.sg-list');
-  const section = card.closest('.sg-slot');
-  const cards = [...list.querySelectorAll('.sg-card')];
-  const pinIdx = cards.indexOf(card);
+  stage.classList.remove('open-card');
+  const cards = [...stage.querySelectorAll('.dk-card')];
+  const pin = cards.indexOf(card);
   cards.forEach((c, i) => {
     if (c === card) return;
-    c.style.transitionDelay = (Math.abs(i - pinIdx) * 60) + 'ms';
-    c.style.transform = 'translateX(-130%) rotate(-6deg)';
+    c.style.transition = 'transform .42s cubic-bezier(.5,0,.75,0), opacity .3s ease';
+    c.style.transitionDelay = (Math.abs(i - pin) * 60) + 'ms';
+    c.style.transform = 'translateX(120%) rotate(8deg)';
     c.style.opacity = '0';
   });
+  const none = document.getElementById('sgNoneRow');
+  if (none) none.classList.add('hide');
   setTimeout(() => {
-    card.classList.add('pinned');
-    section.classList.add('approved');
-    card.style.transitionDelay = '0ms';
-    paintStacks();
-  }, motion('--sg-approve-ms', 480));
-  setTimeout(() => {
+    deck.arriveNext = true;
     redrawHome();
     deckBusy = false;
-  }, motion('--sg-approve-ms', 480) + motion('--sg-pin-ms', 650));
+  }, motion('--sg-approve-ms', 460));
 }
 
-// Change: the approved meal goes back among the ideas, straight away.
+// Change: the approved meal goes back among the ideas, and they slide back in.
 function sgChange(mealId) {
   if (deckBusy) return;
   const m = lastPlan && lastPlan.meals.find((x) => x.id === mealId);
   const was = m ? m.status : 'approved';
   setLocalStatus(mealId, 'suggested');
+  deck.cardsInNext = true;
   redrawHome();
   saveMeal(mealId, { status: 'suggested' }, () => setLocalStatus(mealId, was));
 }
 
-// Use this: the picked recipe is approved straight away. It gets a temporary id until the database gives it a real one.
+// Use this (from "None of these?"): the picked recipe is approved straight away. It gets a temporary id until the database gives it a real one.
 async function sgUse(recipeId, slot) {
   if (!lastPlan) return;
+  closeSheet();
   const tmp = 'tmp-' + Date.now();
   lastPlan.meals.push({ id: tmp, meal_slot: slot, status: 'approved', recipe_id: recipeId, servings: 4, recipes: null });
+  deck.arriveNext = true;
   redrawHome();
   const { data, error } = await sb.from('meals').insert({
     household_id: hh.id,
@@ -521,98 +487,191 @@ async function sgUse(recipeId, slot) {
   redrawHome();
 }
 
-// Clicks on the deck. One listener on the page, so it survives redraws.
-document.addEventListener('click', (e) => {
-  if (suppressClick) { suppressClick = false; if (e.target.closest('#sgDeck')) return; }
-  const go = e.target.closest('[data-sg-go]');
-  if (go) return slideTo(Number(go.dataset.sgGo));
-  const slot = e.target.closest('.sg-slot');
-  if (slot && !slot.classList.contains('current') && e.target.closest('#sgDeck') && !e.target.closest('button, input, li')) {
-    return slideTo([...document.querySelectorAll('#sgDeck .sg-slot')].indexOf(slot));
-  }
-  const pick = e.target.closest('[data-sg-pick]');
-  if (pick) return openPicker(pick.closest('.sg-slot'));
-  if (e.target.closest('[data-sg-close-picker]')) return closePicker(e.target.closest('.sg-slot'));
-  const approve = e.target.closest('[data-sg-approve]');
-  if (approve) return sgApprove(approve.dataset.sgApprove);
-  const change = e.target.closest('[data-sg-change]');
-  if (change) return sgChange(change.dataset.sgChange);
-  const use = e.target.closest('[data-sg-use]');
-  if (use) return sgUse(use.dataset.sgUse, use.dataset.slot);
-  const toggle = e.target.closest('[data-sg-toggle]');
-  if (toggle) {
-    toggle.closest('.sg-card').classList.toggle('open');
-    return paintStacks();
-  }
-  const close = e.target.closest('[data-sg-close]');
-  if (close) {
-    close.closest('.sg-card').classList.remove('open');
-    return paintStacks();
-  }
-  // A tap on a card: the front one opens, one behind comes to the front.
-  const card = e.target.closest('.sg-card');
-  if (card && !e.target.closest('button, input, li, textarea, select') && !card.classList.contains('pinned')) {
-    const section = card.closest('.sg-slot');
-    const list = section.querySelector('.sg-list');
-    if (list.querySelector('.sg-card.open')) return;
-    const idx = [...list.querySelectorAll('.sg-card')].indexOf(card);
-    if (card.classList.contains('front')) {
-      card.classList.add('open');
-      return paintStacks();
-    }
-    deck.front[section.dataset.sgSlot] = idx;
-    paintStacks();
-  }
-});
-
-function slideTo(i) {
-  const n = document.querySelectorAll('#sgDeck .sg-slot').length;
-  deck.cur = Math.max(0, Math.min(n - 1, i));
-  slideDrag = null;
-  layoutDeck();
+// ----- the picker behind "None of these?", which slides up over the meal's card -----
+function openSheet() {
+  const slot = curSlot();
+  const sheet = document.getElementById('sgSheet');
+  if (!sheet) return;
+  const rows = slotRecipes(slot);
+  sheet.innerHTML = `<h4>${esc(t('dkChooseTitle'))}</h4><div class="dk-list">${rows.length ? rows.map((r) => {
+      const name = nameOf(r.title_en, r.title_ar);
+      return `<div class="dk-pick">
+        <span class="dk-thumb" style="background:${colorFor(r.id)}">${esc((name || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="dk-pick-main"><strong>${esc(name)}</strong><small>${r.minutes} min</small>${kindChipHtml(r)}</div>
+        <button type="button" class="dk-btn small" data-dk-use="${r.id}" data-slot="${slot}">${esc(t('useThis'))}</button>
+      </div>`;
+    }).join('') : `<p class="muted">${esc(t('noRecipes'))}</p>`}</div>
+    <button type="button" class="dk-btn ghost dk-wide" data-dk-act="close-sheet">${esc(t('cancel'))}</button>`;
+  sheet.setAttribute('aria-hidden', 'false');
+  void sheet.offsetWidth;
+  sheet.classList.add('open');
+}
+function closeSheet() {
+  const sheet = document.getElementById('sgSheet');
+  if (!sheet) return;
+  sheet.classList.remove('open');
+  sheet.setAttribute('aria-hidden', 'true');
 }
 
-// Drags: sideways moves between meal cards; up or down over a stack moves through its ideas.
+// ----- editing a card: name, minutes and ingredient names, saved to the recipe -----
+function startEdit() {
+  const u = ui(curSlot()), st = slotState(lastPlan, curSlot());
+  const item = st.items[st.approved ? 0 : u.idx];
+  if (!item || !item.r) return;
+  const r = item.r;
+  u.draft = {
+    title: nameOf(r.title_en, r.title_ar),
+    min: r.minutes,
+    ings: r.ings.map((g) => ({ id: g.id, name: nameOf(g.name_en, g.name_ar), orig: nameOf(g.name_en, g.name_ar) })),
+  };
+  u.editing = true;
+  u.open = true;
+  renderStage();
+}
+function cancelEdit() {
+  const u = ui(curSlot());
+  u.editing = false; u.draft = null;
+  renderStage();
+}
+
+// Saves the edit: the card shows it at once, then the recipe and its ingredients are written.
+async function saveEdit() {
+  const slot = curSlot(), u = ui(slot), st = slotState(lastPlan, slot);
+  const item = st.items[st.approved ? 0 : u.idx], d = u.draft;
+  if (!item || !item.r || !d) return;
+  const r = item.r;
+  const k = lang === 'ar' ? '_ar' : '_en';
+  const title = d.title.trim() || nameOf(r.title_en, r.title_ar);
+  const min = Math.min(240, Math.max(5, +d.min || r.minutes));
+  const keep = d.ings.filter((g) => g.name.trim());
+  const removed = r.ings.filter((g) => !keep.some((x) => x.id === g.id)).map((g) => g.id);
+  const renamed = keep.filter((g) => g.id && g.name.trim() !== g.orig);
+  const added = keep.filter((g) => !g.id);
+  const titleChanged = title !== nameOf(r.title_en, r.title_ar) || min !== r.minutes;
+
+  r['title' + k] = title;
+  r.minutes = min;
+  r.ings = keep.map((g) => {
+    const o = r.ings.find((x) => x.id === g.id);
+    if (o) return { ...o, ['name' + k]: g.name.trim() };
+    return { id: null, ingredient_key: g.name.trim().toLowerCase(), name_en: g.name.trim(), name_ar: g.name.trim(), quantity: '', optional: false };
+  });
+  u.editing = false; u.draft = null;
+  renderStage();
+
+  const ops = [];
+  if (titleChanged) ops.push(sb.from('recipes').update({ ['title' + k]: title, minutes: min }).eq('id', r.id));
+  if (removed.length) ops.push(sb.from('recipe_ingredients').delete().in('id', removed));
+  renamed.forEach((g) => ops.push(sb.from('recipe_ingredients').update({ ['name' + k]: g.name.trim() }).eq('id', g.id)));
+  if (added.length) ops.push(sb.from('recipe_ingredients').insert(added.map((g) => ({
+    recipe_id: r.id,
+    ingredient_key: g.name.trim().toLowerCase(),
+    name_en: g.name.trim(),
+    name_ar: g.name.trim(),
+    quantity: '',
+    optional: false,
+  }))));
+  const results = await Promise.all(ops);
+  const err = results.map((x) => x.error).find(Boolean);
+  if (err) setProblem(err);
+  await loadTab({ quiet: true });
+}
+
+// The buttons on the cards and the sheet. One listener on the page, so it survives redraws.
+function deckAct(btn) {
+  const a = btn.dataset.dkAct, u = ui(curSlot());
+  if (a === 'approve') return sgApprove(btn.dataset.id);
+  if (a === 'change') return sgChange(btn.dataset.id);
+  if (a === 'edit') return startEdit();
+  if (a === 'close') return setOpen(false);
+  if (a === 'save') return saveEdit();
+  if (a === 'cancel-edit') return cancelEdit();
+  if (a === 'add-ing') {
+    if (!u.draft) return;
+    u.draft.ings.push({ id: null, name: t('dkNewIng'), orig: '' });
+    renderStage();
+    const ins = document.querySelectorAll('#sgStage [data-dk-ing]');
+    if (ins.length) ins[ins.length - 1].focus();
+    return;
+  }
+  if (a === 'rm') { if (u.draft) { u.draft.ings.splice(+btn.dataset.i, 1); renderStage(); } return; }
+  if (a === 'choose') return openSheet();
+  if (a === 'close-sheet') return closeSheet();
+}
+
+document.addEventListener('click', (e) => {
+  if (suppressClick) { suppressClick = false; if (e.target.closest('#sgStage')) return; }
+  const mt = e.target.closest('#mtBar [data-dk-slot]');
+  if (mt) return pickSlot(Number(mt.dataset.dkSlot));
+  const act = e.target.closest('[data-dk-act]');
+  if (act) return deckAct(act);
+  const use = e.target.closest('[data-dk-use]');
+  if (use) return sgUse(use.dataset.dkUse, use.dataset.slot);
+  // A tap on a card: the front one opens; one behind comes to the front.
+  const card = e.target.closest('#sgStage .dk-card');
+  if (card && !e.target.closest('button, input, textarea, label')) {
+    const slot = curSlot(), u = ui(slot), st = slotState(lastPlan, slot);
+    if (st.approved) { if (!u.open) setOpen(true); return; }
+    if (u.open) return;
+    const k = [...document.querySelectorAll('#sgStage .dk-card')].indexOf(card);
+    if (k === u.idx) setOpen(true);
+    else goTo(k);
+  }
+});
+
+// The meal times: switching slides the cards in from the side the new meal is on.
+function pickSlot(k) {
+  if (k === deck.cur || deckBusy || !lastPlan) return;
+  const dir = k > deck.cur ? 'r' : 'l';
+  deck.cur = k;
+  closeSheet();
+  renderStage({ enter: dir });
+}
+
+// Drags: a sideways drag moves through the ideas for this meal (one card per swipe), and the row
+// follows the finger. Sideways drags on an open card are not taken, so the card can scroll.
+let drag = null;
 document.addEventListener('pointerdown', (e) => {
-  const el = document.getElementById('sgDeck');
-  if (!el || !el.contains(e.target)) return;
-  suppressClick = false;   // a drag that ends without a click must not swallow the next tap
-  // A drag may start on a button or ingredient row (a tap there still counts as a tap); typing and the picker's list don't.
-  if (e.target.closest('input, textarea, select, .sg-picker')) return;
-  const list = e.target.closest('.sg-list');
-  if (list && !list.querySelector('.sg-card.open')) listDrag = { list, y0: e.clientY };
-  slideDrag = { x0: e.clientX, y0: e.clientY, px: 0, on: false, moved: false, el };
+  const stage = document.getElementById('sgStage');
+  if (!stage || !stage.contains(e.target)) return;
+  suppressClick = false;
+  if (e.target.closest('button, input, textarea, select, label')) return;   // taps and typing on a card's own controls
+  const u = ui(curSlot());
+  if (stage.dataset.pinned === '1' || u.open || deckBusy || !lastPlan) return;
+  drag = { x0: e.clientX, id: e.pointerId, moved: false, dx: 0 };
 });
 document.addEventListener('pointermove', (e) => {
-  if (!slideDrag) return;
-  const dx = e.clientX - slideDrag.x0, dy = e.clientY - slideDrag.y0;
-  if (!slideDrag.on && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
-    slideDrag.on = true;
-    slideDrag.moved = true;
-    slideDrag.el.classList.add('dragging');
-  }
-  if (slideDrag.on) { slideDrag.px = dx; layoutDeck(); }
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x0;
+  if (!drag.moved && Math.abs(dx) > 8) drag.moved = true;
+  if (!drag.moved) return;
+  const u = ui(curSlot()), n = slotState(lastPlan, curSlot()).items.length;
+  const atEnd = (dx > 0 && u.idx === 0) || (dx < 0 && u.idx === n - 1);
+  drag.dx = dx;
+  layoutCards(false, null, atEnd ? dx * 0.3 : dx);
 });
-document.addEventListener('pointerup', (e) => {
-  if (listDrag) {
-    const dy = e.clientY - listDrag.y0;
-    if (Math.abs(dy) > 30) {
-      suppressClick = true;
-      stepStack(listDrag.list.closest('.sg-slot'), dy < 0 ? 1 : -1);
-    }
-    listDrag = null;
-  }
-  if (!slideDrag) return;
-  const d = slideDrag;
-  slideDrag = null;
-  if (!d.on) return;
-  d.el.classList.remove('dragging');
+function endDrag(e) {
+  if (!drag || (e && e.pointerId !== drag.id)) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) return;
   suppressClick = true;
-  // One meal card at a time: a swipe past a fifth of the width moves one card, anything less goes back.
-  const w = d.el.clientWidth || 1;
-  if (Math.abs(d.px) > w * 0.2) slideTo(deck.cur + (d.px < 0 ? 1 : -1));
-  else layoutDeck();
-});
-window.addEventListener('resize', () => { layoutDeck(); paintStacks(); });
+  const u = ui(curSlot()), n = slotState(lastPlan, curSlot()).items.length;
+  if (d.dx < -50 && u.idx < n - 1) u.idx++;
+  else if (d.dx > 50 && u.idx > 0) u.idx--;
+  layoutCards(true);
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
 
-// What is on the Home screen, as a short text. If it is the same as last time, the screen isn't redrawn.
+// Typing in the editor keeps the draft up to date.
+document.addEventListener('input', (e) => {
+  const u = ui(curSlot());
+  if (!u.draft || !e.target.closest || !e.target.closest('#sgStage')) return;
+  const f = e.target.dataset.dkF, ing = e.target.dataset.dkIng;
+  if (f === 'title') u.draft.title = e.target.value;
+  if (f === 'min') u.draft.min = e.target.value;
+  if (ing !== undefined && u.draft.ings[+ing]) u.draft.ings[+ing].name = e.target.value;
+});
+
+window.addEventListener('resize', () => { layoutCards(false); });
