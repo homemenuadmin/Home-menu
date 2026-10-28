@@ -2,6 +2,7 @@
    Loaded after styles.css by index.html. */
 
 /* Keep the side menu above the screen, and the tour above the menu. */
+.nav { z-index: 50; }
 .tour { z-index: 60; }
 
 /* ---------------------------------------------------------------
@@ -183,6 +184,7 @@
    Arabic (right-to-left): the menu slides in from the right and stays on screen when open.
    This overrides the closed-position rule in styles.css, which was more specific than the open rule.
    --------------------------------------------------------------- */
+html[dir=rtl] .nav.open .drawer { transform: none; }
 
 /* Add to home screen card */
 .install-card { border-color: #9FD8CF; background: #F0FAF8; }
@@ -386,6 +388,7 @@
 /* Room for the scrollbar is always reserved, so the page and the side menu never shift when it appears. */
 html { scrollbar-gutter: stable; }
 /* Timings for the side menu, the language switch and the opening sequence. Read by the script too. */
+.drawer { scrollbar-gutter: stable; }
 :root { --drawer-ms: 300ms; --scrim-ms: 250ms; --lang-ms: 180ms; --intro-hold-ms: 1900ms; --intro-glide-ms: 1500ms; --intro-sheet-ms: 2500ms; }
 
 /* Start-up splash, shown until the first screen is ready. It fades in after a short pause,
@@ -567,19 +570,3 @@ button, a, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip { touch-action:
 button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .sg-pill, .sg-dots button, .sg-card, .sg-slot {
   -webkit-user-select: none; user-select: none; }
 
-/* Tab bar: a floating dark bar along the bottom, with the active tab opening into its label. */
-#nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; pointer-events: none; }
-#nav[hidden] { display: none; }
-#app { padding-bottom: 96px; }
-.tab-bar { pointer-events: auto; position: absolute; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  height: 66px; max-width: 560px; margin: 0 auto; background: #1F2937; border-radius: 30px; display: flex; align-items: center;
-  justify-content: space-around; gap: 4px; padding: 0 8px; box-shadow: 0 12px 28px rgba(31,41,55,.35); }
-.tab-item { height: 50px; min-width: 50px; border: 0; background: transparent; color: #9CA3AF; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; font: inherit; font-size: 14px;
-  font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
-  flex: 0 1 auto; min-width: 0; }
-.tab-item svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-.tab-label { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tab-item.on { background: var(--teal); color: #fff; }
-.tab-item.on .tab-label { display: inline; }
-.tab-item:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }

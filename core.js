@@ -19,6 +19,7 @@ let ruleForm = false;
 let cache = {};           // data loaded for the current tab
 let needsHousehold = false; // signed in, but not yet in any household
 let needsSetup = false;     // in a household, but has not finished the first-time questions
+let drawerOpen = false;     // the side menu (tabs and profile)
 let lastViewKey = '';       // the screen on show, so only a real change of screen animates
 let testPassword = null;    // kept only while the test account is signed in, so sign out can reset it
 let screenBusy = false;     // true while a screen is refreshing with its old content still showing
@@ -134,7 +135,7 @@ const nameOf = (en, ar) => (lang === 'ar' && ar) ? ar : (en || ar || '');
 // viewRole is for testing only: it changes the layout and what the screens offer, but not the stored role.
 let viewRole = null;
 function activeRole() { return viewRole || (hh ? hh.role : 'member'); }
-// The tabs each role sees. Settings is always there too, added in tabBarHtml.
+// The tabs each role sees. Settings is always there too, added in drawerHtml.
 const ROLE_TABS = {
   member: ['home', 'today', 'recipes', 'kitchen'],
   helper: ['home', 'planner', 'recipes', 'kitchen'],
@@ -252,14 +253,18 @@ function render() {
   }
   // After the first-time questions, the guided tour starts once (until it is finished or skipped).
   if (!hh.tourDone && tourStep === null) startTour();   // the tour shows over the screen that is loading, with no second load
-  // The tab bar is built once per household and role; after that only its active tab changes.
+  // The side menu is built once per household and role, so it can slide in and out without being redrawn.
   nav.hidden = false;
-  const key = tabBarKey();
-  if (nav.dataset.key !== key) { nav.dataset.key = key; nav.innerHTML = tabBarHtml(); }
-  nav.querySelectorAll('.tab-item').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const key = drawerKey();
+  if (nav.dataset.key !== key) { nav.dataset.key = key; nav.innerHTML = drawerHtml(); }
+  // Read the closed position first, so the browser has a starting point and the slide plays.
+  if (drawerOpen) void nav.offsetWidth;
+  nav.classList.toggle('open', drawerOpen);
+  nav.querySelectorAll('.drawer-item').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   const keepScroll = captureScroll();
   app.innerHTML = `
     <div class="top">
+      <button class="icon-btn" onclick="openDrawer()" aria-label="${esc(t('menu'))}" aria-expanded="${drawerOpen}">${MENU_ICON}</button>
       <div class="top-title">
         <div class="muted">${esc(hh.name)}</div>
         <h1>${esc(t(tab))}</h1>
@@ -274,27 +279,39 @@ function render() {
   if (tab === 'home') setupHome(cache.playIntro);
 }
 
-// The tab bar along the bottom: the tabs each role sees, and Settings (where sign out lives).
-const TAB_ICONS = {
-  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
-  today: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
-  planner: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
-  recipes: '<path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z"/><path d="M6 16a2 2 0 0 1 2-2h10"/>',
-  kitchen: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 10h14"/><path d="M9 6.5v1.5M9 13v2"/>',
-  profile: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.6-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>',
-};
+// The side menu: the tabs, and Profile (where sign out lives).
+const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
 
-// The bar is rebuilt when its contents change, including the language, so its labels stay right.
-function tabBarKey() { return [hh.id, can.people(), activeRole(), lang].join('|'); }
+// The menu is rebuilt when its contents change, including the language, so its labels stay right.
+function drawerKey() { return [hh.id, hh.name, can.people(), activeRole(), lang].join('|'); }
 
-function tabBarHtml() {
+function drawerHtml() {
+  // Each role sees its own tabs; Settings is there for everyone.
   const items = [...ROLE_TABS[activeRole()], 'profile'];
-  return `<nav class="tab-bar" aria-label="${esc(t('menu'))}">${items.map((k) => `
-    <button class="tab-item" data-tab="${k}" onclick="go('${k}')" aria-label="${esc(t(k))}">
-      <svg viewBox="0 0 24 24" aria-hidden="true">${TAB_ICONS[k]}</svg>
-      <span class="tab-label">${esc(t(k))}</span>
-    </button>`).join('')}
-  </nav>`;
+  return `
+    <div class="scrim" onclick="closeDrawer()"></div>
+    <aside class="drawer" role="dialog" aria-label="${esc(t('menu'))}">
+      <div class="drawer-head">
+        <div class="muted">${esc(hh.name)}</div>
+        <button class="btn secondary small" onclick="closeDrawer()">${esc(t('close'))}</button>
+      </div>
+      <ul class="clean">
+        ${items.map((k) => `<li><button class="drawer-item" data-tab="${k}" onclick="go('${k}')">${esc(t(k))}</button></li>`).join('')}
+      </ul>
+    </aside>`;
+}
+
+// The side menu only changes its own classes, so the screen behind it is not redrawn.
+function openDrawer() { setDrawer(true); }
+function closeDrawer() { setDrawer(false); }
+function setDrawer(open) {
+  drawerOpen = open;
+  const nav = document.getElementById('nav');
+  if (!nav || nav.hidden) return render();
+  if (open) void nav.offsetWidth;   // read the closed position first, so the slide plays
+  nav.classList.toggle('open', open);
+  const btn = document.querySelector('.icon-btn');
+  if (btn) btn.setAttribute('aria-expanded', String(open));
 }
 
 // ---------------------------------------------------------------
@@ -426,6 +443,7 @@ async function createHousehold() {
 async function go(k) {
   // Only the tabs this view has, plus Settings.
   tab = (ROLE_TABS[activeRole()].includes(k) || k === 'profile') ? k : 'home';
+  drawerOpen = false;
   notice = ''; problem = '';
   mealForm = false; mealEditId = null; itemForm = false; ruleForm = false; openRecipeId = null; plannerDay = null; plannerRecipeId = null;
   await loadTab();
