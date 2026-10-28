@@ -456,7 +456,7 @@ async function loadTab(opts = {}) {
   screenBusy = cache.screenTab === tab && !quiet;
   // The greeting and the sheet rising play once each time the app is opened, not on every visit to Home.
   if (tab === 'home' && !introPlayed()) { homeLanded = false; cache.playIntro = true; }
-  if (!screenBusy && !quiet) cache.screenHtml = skeletonHtml();
+  if (!screenBusy && !quiet) cache.screenHtml = (tab === 'home' && savedHomeHtml()) || skeletonHtml();
   cache.loading = true;
   if (!quiet) render();
   try {
@@ -473,6 +473,8 @@ async function loadTab(opts = {}) {
   cache.loading = false;
   screenBusy = false;
   cache.screenTab = tab;
+  // A quiet refresh that changes nothing on Home leaves the drawn screen alone: no rebuild, so nothing replays.
+  if (quiet && tab === 'home' && cache.homeSame && cache.screenTab === 'home') { ensureLive(); return; }
   render();
   ensureLive();
 }
@@ -527,7 +529,7 @@ async function refreshNow() {
     return;
   }
   // Wait for a load in progress, a fold closing, or the intro on Home to finish.
-  if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded)) {
+  if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded) || (typeof deckBusy !== 'undefined' && deckBusy)) {
     liveTimer = setTimeout(refreshNow, 200);
     return;
   }

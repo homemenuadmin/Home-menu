@@ -389,38 +389,95 @@ function initDeck() {
   }, { passive: false });
 }
 
-// Approve: the other ideas slide away, one after another, then the approved meal is pinned.
+// The Home data on screen. Approve, change and use change it at once, redraw, and save in the background.
+let lastPlan = null;
+
+function homeTimes() {
+  const hour = new Date().getHours();
+  return {
+    greeting: hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening'),
+    niceDate: new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' }),
+  };
+}
+
+// Draws the Home screen from the data on screen, straight away, without waiting for the database.
+function redrawHome() {
+  if (!lastPlan || tab !== 'home') return;
+  const { greeting, niceDate } = homeTimes();
+  cache.playIntro = false;
+  cache.screenHtml = familyHomeHtml(lastPlan, greeting, niceDate);
+  cache.homeSig = homeSignature(lastPlan);   // the database's echo of this change is then seen as no change
+  render();
+}
+
+function setLocalStatus(id, status) {
+  const m = lastPlan && lastPlan.meals.find((x) => x.id === id);
+  if (m) m.status = status;
+}
+
+// Saves a meal change made on screen. If the save fails, the screen goes back to what it was and says why.
+function saveMeal(id, fields, revert) {
+  return sb.from('meals').update(fields).eq('id', id).then(({ error }) => {
+    if (!error) return true;
+    revert();
+    redrawHome();
+    setProblem(error);
+    return false;
+  });
+}
+
+// Approve: the other ideas slide away, the approved card moves to its pinned place, then the screen is drawn
+// from the new data. The save runs alongside the animation, so the card doesn't wait for the database.
 function sgApprove(mealId) {
   if (deckBusy) return;
   const card = document.querySelector(`[data-sg-card="${mealId}"]`);
   if (!card) return;
   deckBusy = true;
+  if (navigator.vibrate) navigator.vibrate(12);   // a short tap of feedback on Android
+  const m = lastPlan && lastPlan.meals.find((x) => x.id === mealId);
+  const was = m ? m.status : 'suggested';
+  setLocalStatus(mealId, 'approved');
+  saveMeal(mealId, { status: 'approved' }, () => setLocalStatus(mealId, was));
+
   const list = card.closest('.sg-list');
+  const section = card.closest('.sg-slot');
   const cards = [...list.querySelectorAll('.sg-card')];
   const pinIdx = cards.indexOf(card);
-  const section = card.closest('.sg-slot');
   cards.forEach((c, i) => {
     if (c === card) return;
     c.style.transitionDelay = (Math.abs(i - pinIdx) * 60) + 'ms';
     c.style.transform = 'translateX(-130%) rotate(-6deg)';
     c.style.opacity = '0';
   });
-  // Then the approved card moves to its pinned place on the meal card, and only then is the saved meal drawn.
-  // The drawn card matches where it already is, so nothing jumps or replays.
   setTimeout(() => {
     card.classList.add('pinned');
     section.classList.add('approved');
     card.style.transitionDelay = '0ms';
     paintStacks();
   }, motion('--sg-approve-ms', 480));
-  setTimeout(async () => {
-    await setMealStatus(mealId, 'approved');
+  setTimeout(() => {
+    redrawHome();
     deckBusy = false;
   }, motion('--sg-approve-ms', 480) + motion('--sg-pin-ms', 650));
 }
 
+// Change: the approved meal goes back among the ideas, straight away.
+function sgChange(mealId) {
+  if (deckBusy) return;
+  const m = lastPlan && lastPlan.meals.find((x) => x.id === mealId);
+  const was = m ? m.status : 'approved';
+  setLocalStatus(mealId, 'suggested');
+  redrawHome();
+  saveMeal(mealId, { status: 'suggested' }, () => setLocalStatus(mealId, was));
+}
+
+// Use this: the picked recipe is approved straight away. It gets a temporary id until the database gives it a real one.
 async function sgUse(recipeId, slot) {
-  const { error } = await sb.from('meals').insert({
+  if (!lastPlan) return;
+  const tmp = 'tmp-' + Date.now();
+  lastPlan.meals.push({ id: tmp, meal_slot: slot, status: 'approved', recipe_id: recipeId, servings: 4, recipes: null });
+  redrawHome();
+  const { data, error } = await sb.from('meals').insert({
     household_id: hh.id,
     created_by: session.user.id,
     meal_date: todayIso(),
@@ -428,9 +485,15 @@ async function sgUse(recipeId, slot) {
     recipe_id: recipeId,
     servings: 4,
     status: 'approved',
-  });
-  if (error) return setProblem(error);
-  await loadTab({ quiet: true });
+  }).select('id').single();
+  const m = lastPlan.meals.find((x) => x.id === tmp);
+  if (error) {
+    if (m) lastPlan.meals.splice(lastPlan.meals.indexOf(m), 1);
+    redrawHome();
+    return setProblem(error);
+  }
+  if (m) m.id = data.id;
+  redrawHome();
 }
 
 // Clicks on the deck. One listener on the page, so it survives redraws.
@@ -448,7 +511,7 @@ document.addEventListener('click', (e) => {
   const approve = e.target.closest('[data-sg-approve]');
   if (approve) return sgApprove(approve.dataset.sgApprove);
   const change = e.target.closest('[data-sg-change]');
-  if (change) return setMealStatus(change.dataset.sgChange, 'suggested');
+  if (change) return sgChange(change.dataset.sgChange);
   const use = e.target.closest('[data-sg-use]');
   if (use) return sgUse(use.dataset.sgUse, use.dataset.slot);
   const toggle = e.target.closest('[data-sg-toggle]');
@@ -526,3 +589,12 @@ document.addEventListener('pointerup', (e) => {
   else layoutDeck();
 });
 window.addEventListener('resize', () => { layoutDeck(); paintStacks(); });
+
+// What is on the Home screen, as a short text. If it is the same as last time, the screen isn't redrawn.
+function homeSignature(plan) {
+  return JSON.stringify([
+    plan.meals.map((m) => [m.id, m.meal_slot, m.status, m.recipe_id]),
+    (cache.pickerRecipes || []).map((r) => [r.id, r.title_en, r.title_ar, r.minutes, r.ready, r.missing, r.source, r.desc]),
+    plan.low.map((p) => [p.id, p.level]),
+  ]);
+}

@@ -561,3 +561,11 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .sg-hint { text-align: center; font-size: 12px; color: var(--muted, #4B5563); margin: 6px 0 0; }
 
 @media (prefers-reduced-motion: reduce) { .sg-card, .sg-slot, .sg-card.pinned { transition: none !important; animation: none !important; } }
+
+/* App feel: no pull-to-refresh or edge bounce, no grey flash on tap, no tap delay,
+   and buttons and cards don't select text when held. */
+html, body { overscroll-behavior-y: none; }
+body { -webkit-tap-highlight-color: transparent; }
+button, a, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip { touch-action: manipulation; }
+button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .sg-pill, .sg-dots button, .sg-card, .sg-slot {
+  -webkit-user-select: none; user-select: none; }

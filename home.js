@@ -16,6 +16,18 @@ function markIntroPlayed() {
   try { sessionStorage.setItem('homemenu-intro', '1'); } catch (e) {}
 }
 
+// The last family Home drawn is kept on this device, so the next open shows it at once while fresh data loads.
+// Keyed by household and language, because the markup is written in one language for one household.
+function lastHomeKey() {
+  return 'homemenu-home-last:' + ((typeof hh !== 'undefined' && hh && hh.id) || 'none') + ':' + (typeof lang !== 'undefined' ? lang : 'en');
+}
+function savedHomeHtml() {
+  try { return localStorage.getItem(lastHomeKey()) || ''; } catch (e) { return ''; }
+}
+function saveHomeHtml(html) {
+  try { localStorage.setItem(lastHomeKey(), html); } catch (e) { /* storage full or blocked: the app simply loads as before */ }
+}
+
 async function screenHome() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening');
@@ -25,7 +37,13 @@ async function screenHome() {
     let plan = await loadPlan();
     if (await makeSuggestions(plan)) plan = await loadPlan();
     startAiIdeas(plan);
-    return familyHomeHtml(plan, greeting, niceDate);
+    lastPlan = plan;
+    const sig = homeSignature(plan);
+    cache.homeSame = sig === cache.homeSig;
+    cache.homeSig = sig;
+    const html = familyHomeHtml(plan, greeting, niceDate);
+    saveHomeHtml(html);
+    return html;
   }
 
   const [meals, low] = await Promise.all([
