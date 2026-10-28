@@ -277,7 +277,7 @@
 @keyframes toast-in { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
 
 /* Header: menu and title on the left, role and language on the right, all on one row. */
-.top-title { flex:1 1 auto; min-width:0; text-align:start; }
+.top-title { flex:1 1 100%; min-width:0; text-align:start; }   /* the title always has its own row, so the Family / Cook toggle sits in one place */
 .top-title h1 { font-size:28px; margin:4px 0 0; overflow-wrap:anywhere; }
 .top-actions { flex-wrap:nowrap; gap:6px; }
 .top-actions .btn.small { min-height:44px; font-size:16px; padding:6px 12px; }
