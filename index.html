@@ -43,5 +43,34 @@
 <script src="profile.js"></script>
 <script src="main.js"></script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+<script>
+// Checks for a newer version when the app comes back to the front, and every 5 minutes.
+// version.json is written by the sync script on each push. A new one shows a bar to reload; nothing reloads by itself.
+(function () {
+  var loaded = null;
+  function showBar() {
+    if (document.getElementById('updateBar')) return;
+    var b = document.createElement('button');
+    b.id = 'updateBar';
+    b.type = 'button';
+    b.textContent = 'New version ready. Tap to update.';
+    b.onclick = function () { location.reload(); };
+    document.body.appendChild(b);
+  }
+  function check() {
+    fetch('version.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.version) return;
+        if (loaded === null) { loaded = j.version; return; }
+        if (j.version !== loaded) showBar();
+      })
+      .catch(function () {});
+  }
+  check();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  setInterval(check, 5 * 60 * 1000);
+})();
+</script>
 </body>
 </html>
