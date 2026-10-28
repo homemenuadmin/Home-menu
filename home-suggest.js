@@ -505,12 +505,18 @@ function openSheet() {
   sheet.setAttribute('aria-hidden', 'false');
   void sheet.offsetWidth;
   sheet.classList.add('open');
+  // While the picker is up, the restock pill is off: its card would otherwise open behind the picker.
+  document.querySelectorAll('.restock-wrap.open').forEach((w) => w.classList.remove('open'));
+  const stage = document.getElementById('homeStage');
+  if (stage) stage.classList.add('picking');
 }
 function closeSheet() {
   const sheet = document.getElementById('sgSheet');
   if (!sheet) return;
   sheet.classList.remove('open');
   sheet.setAttribute('aria-hidden', 'true');
+  const stage = document.getElementById('homeStage');
+  if (stage) stage.classList.remove('picking');
 }
 
 // ----- editing a card: name, minutes and ingredient names, saved to the recipe -----
