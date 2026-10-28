@@ -71,25 +71,22 @@ async function screenHome() {
 }
 
 // Family: the greeting, then a sheet with each meal of the day: its ideas to approve, or the approved meal pinned.
+// The greeting is in the top bar now, so the family Home is the meals sheet alone. Restock is a pill beside the heading.
+function restockPillHtml(plan) {
+  const n = plan.low.length;
+  if (!n) return '';
+  return `<button class="restock-pill" onclick="go('kitchen')">${esc(n + ' · ' + t('needsRestock'))}</button>`;
+}
+
 function familyHomeHtml(plan, greeting, niceDate) {
   const sections = deckHtml(plan);
-
-  const intro = cache.playIntro ? ' arriving' : '';
-  return `<div class="home-stage${intro}" id="homeStage">
-    <div class="home-greet">
-      <div class="home-blob"></div>
-      <div class="home-greet-inner">
-        <div class="home-date">${esc(niceDate)}</div>
-        <h1 class="home-hello">${esc(greeting)}</h1>
-        <p class="home-note">${esc(roleNote())}</p>
-      </div>
-      <div class="home-cue">${esc(t('todayMeals'))}</div>
-    </div>
+  return `<div class="home-stage" id="homeStage">
     <div class="home-sheet" id="homeSheet">
-      <h2 class="home-sheet-title">${esc(t('todayMeals'))}</h2>
+      <div class="home-meta">
+        <h3 class="home-sheet-title">${esc(t('todayMeals'))}</h3>
+        ${restockPillHtml(plan)}
+      </div>
       ${sections}
-      <h3 class="home-label">${esc(t('kitchenAlerts'))}</h3>
-      ${kitchenAlertsHtml(plan.low)}
       ${installCard('home')}
     </div>
   </div>`;
@@ -139,6 +136,7 @@ async function homeAddMeal() {
 // Family Home: sets the greeting and the sheet. On a fresh visit the greeting holds, then the sheet rises over it.
 // The greeting can't be scrolled back to: the sheet's top is fixed and only its list scrolls.
 function setupHome(intro) {
+  intro = false;   // the greeting is in the top bar, so the sheet no longer rises over it
   initDeck();   // the meal cards for the family (home-suggest.js), drawn with the screen
   const stage = document.getElementById('homeStage');
   const sheet = document.getElementById('homeSheet');

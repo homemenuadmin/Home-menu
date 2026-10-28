@@ -258,7 +258,7 @@ function deckHtml(plan) {
       <div class="dk-stage" id="sgStage"></div>
       <div class="dk-sheet" id="sgSheet" aria-hidden="true"></div>
     </div>
-    <div class="dk-none-row" id="sgNoneRow"><button type="button" class="dk-none" id="sgNone" data-dk-act="choose">${esc(t('noneOfThese'))}</button></div>`;
+    <div class="dk-none-row" id="sgNoneRow"><button type="button" class="dk-none" id="sgNone" data-dk-act="choose">${esc(t('dkNone'))}</button></div>`;
 }
 
 // ----- the stack: the front card full size, the next ones behind it, the one swiped away kept as a sliver -----

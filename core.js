@@ -243,11 +243,13 @@ function render() {
   nav.querySelectorAll('.tab-item').forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle('on', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
   if (typeof drawMealTimes === 'function') drawMealTimes();   // the meal times bar on Home (home-suggest.js); it hides on the other tabs
   const keepScroll = captureScroll();
+  // The family Home's top bar is the greeting, as in the mockup.
+  const homeTop = tab === 'home' && activeRole() === 'member' && typeof homeTimes === 'function' ? homeTimes() : null;
   app.innerHTML = `
     <div class="top">
       <div class="top-title">
-        <div class="muted">${esc(hh.name)}</div>
-        <h1>${esc(t(tab))}</h1>
+        <div class="muted">${esc(homeTop ? hh.name + ' · ' + homeTop.niceDate : hh.name)}</div>
+        <h1>${esc(homeTop ? homeTop.greeting : t(tab))}</h1>
       </div>
       <div class="top-actions">${roleToggleHtml()}</div>
     </div>
