@@ -474,9 +474,9 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 @keyframes dk-pin { from { opacity: .35; transform: translateY(28px) scale(.94); } to { opacity: 1; transform: none; } }
 
 .dk-card { position: absolute; top: 0; bottom: 0; left: 20px; right: 20px; border-radius: 28px; padding: 18px; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--accent, #D6EFD0) 22%, #fff); box-shadow: 0 10px 26px rgba(31,41,55,.14), 0 0 0 1px rgba(31,41,55,.06);
+  background: color-mix(in srgb, var(--accent, #D6EFD0) 22%, #fff); box-shadow: 0 6px 16px rgba(31,41,55,.10), 0 0 0 1px rgba(31,41,55,.06);
   transform-origin: 50% 100%; will-change: transform; cursor: pointer; overflow: hidden; }
-.dk-card.pinned { box-shadow: 0 10px 26px rgba(31,41,55,.14), 0 0 0 2px var(--teal, #0F766E); }
+.dk-card.pinned { box-shadow: 0 6px 16px rgba(31,41,55,.10), 0 0 0 2px var(--teal, #0F766E); }
 .dk-card.open { cursor: default; overflow-y: auto; overflow-x: hidden; left: 0; right: 0; top: 0; bottom: 0; transform: none !important; z-index: 30 !important; border-radius: 0; box-shadow: none; }
 .dk-stage.open-card .dk-card:not(.open) { opacity: 0 !important; pointer-events: none; }
 .dk-stage.open-card .dk-card.open { border-radius: 28px; left: 0; right: 0; }
@@ -538,7 +538,7 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .dk-bar2 .dk-btn { flex: 1; }
 
 /* "None of these?" and the picker that slides up over the meal's cards */
-.dk-none-row { display: flex; justify-content: center; align-items: center; height: 46px; margin-top: 10px; transition: opacity .3s ease; }
+.dk-none-row { position: relative; z-index: 2; display: flex; justify-content: center; align-items: center; height: 46px; margin-top: 10px; transition: opacity .3s ease; }
 .dk-none-row.hide { display: none; }
 .dk-none { border: 1px solid var(--line, #E5E7EB); background: #fff; color: var(--teal, #0F766E); font: inherit; font-size: 13px; font-weight: 700; padding: 0 16px; height: 38px; border-radius: 999px; cursor: pointer; touch-action: manipulation; }
 .dk-sheet { position: absolute; left: 20px; right: 20px; top: 0; bottom: 0; background: #fff; border-radius: 28px; padding: 16px; z-index: 80; display: flex; flex-direction: column;
