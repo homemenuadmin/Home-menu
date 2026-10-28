@@ -39,8 +39,13 @@ html { touch-action: pan-x pan-y; }
   .icon-btn svg { width:28px; height:28px; }
   @keyframes screen-in { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
   #screen.enter { animation:screen-in .28s ease-out both; }
+  /* Family <-> Cook: the new screen comes in from the side it belongs to. */
+  @keyframes screen-from-right { from { opacity:0; transform:translateX(28px); } to { opacity:1; transform:none; } }
+  @keyframes screen-from-left { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:none; } }
+  #screen.enter.from-right { animation:screen-from-right .32s cubic-bezier(.2,.7,.2,1) both; }
+  #screen.enter.from-left { animation:screen-from-left .32s cubic-bezier(.2,.7,.2,1) both; }
   @media (prefers-reduced-motion: reduce) {
-    #screen.enter { animation:none; }
+    #screen.enter, #screen.enter.from-right, #screen.enter.from-left { animation:none; }
   }
   .center { text-align:center; padding-top:40px; }
   ul.clean { list-style:none; padding:0; margin:0; }

@@ -37,9 +37,9 @@ async function screenProfile() {
   return `
     <div class="card lang-card">
       <div class="muted">${esc(t('settingsLanguage'))}</div>
-      <div class="seg lang-seg" role="group" aria-label="${esc(t('settingsLanguage'))}">
-        <button class="${lang === 'en' ? 'on' : ''}" aria-pressed="${lang === 'en'}" onclick="setLang('en')">English</button>
-        <button class="${lang === 'ar' ? 'on' : ''}" aria-pressed="${lang === 'ar'}" onclick="setLang('ar')">عربي</button>
+      <div class="seg lang-seg" role="group" aria-label="${esc(t('settingsLanguage'))}"><span class="seg-ind" aria-hidden="true"></span>
+        <button class="${lang === 'en' ? 'on' : ''}" aria-pressed="${lang === 'en'}" onclick="segTap(this); setLang('en')">English</button>
+        <button class="${lang === 'ar' ? 'on' : ''}" aria-pressed="${lang === 'ar'}" onclick="segTap(this); setLang('ar')">عربي</button>
       </div>
     </div>
     ${profileHtml}

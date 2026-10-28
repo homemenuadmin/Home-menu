@@ -26,10 +26,15 @@ let roleMenuOpen = false;   // the top-bar role menu
 // Which screen is showing: 'main:<tab>' or 'setup:<step>'. Returns the class that plays the entrance once per change.
 function screenClass(key) {
   if (cache.loading) return '';
-  const enter = key !== lastViewKey;
+  const enter = key !== lastViewKey || !!screenDir;
   lastViewKey = key;
-  return enter ? ' enter' : '';
+  if (!enter) return '';
+  // A switch between Family and Cook enters from the side it belongs to, then the flag is used up.
+  const dir = screenDir;
+  screenDir = '';
+  return ' enter' + (dir ? ' ' + dir : '');
 }
+let screenDir = '';         // 'from-right' or 'from-left' while a Family/Cook switch is landing
 
 // ---------------------------------------------------------------
 // Motion. Timings live in the CSS variables (styles-home.css), so each one is set in one place.
@@ -172,12 +177,26 @@ function langButton() {
 // The view switcher in the top bar (testing only): shows the layout for Cook or Family member.
 // It does not change the stored role; that is set in Settings.
 async function switchView(next) {
+  // Cook sits to the right of Family member, so the old screen leaves left and the new one enters from the right.
+  const goingRight = next === 'helper';
+  const old = document.getElementById('screen');
+  const ms = motion('--view-ms', 170);
+  let exit = null;
+  if (old && ms && old.animate) {
+    exit = old.animate([
+      { opacity: 1, transform: 'none' },
+      { opacity: 0, transform: `translateX(${goingRight ? -24 : 24}px)` }
+    ], { duration: ms, easing: 'ease-in', fill: 'forwards' });
+    await exit.finished.catch(() => {});
+  }
   viewRole = next === hh.role ? null : next;
   problem = '';
   // Leave a tab the new view does not have.
   if (!ROLE_TABS[activeRole()].includes(tab) && tab !== 'profile') tab = 'home';
   mealForm = false; mealEditId = null; openRecipeId = null;
+  screenDir = ms ? (goingRight ? 'from-right' : 'from-left') : '';
   await loadTab();
+  if (exit) exit.cancel();
 }
 function messages() {
   let out = '';
@@ -257,6 +276,7 @@ function render() {
     <div id="screen" class="${screenClass('main:' + tab)}${screenBusy ? ' busy' : ''}">${cache.screenHtml || ''}</div>
     ${tourHtml()}`;
   restoreScroll(keepScroll);
+  segPlay();
   // The family Home sets up its greeting and meals sheet once the screen is in place.
   if (tab === 'home') setupHome(cache.playIntro);
 }
@@ -288,10 +308,48 @@ function tabBarHtml() {
 // Family member / Cook, as a two-way toggle at the top of each screen.
 function roleToggleHtml() {
   const current = activeRole();
-  return `<div class="seg role-seg" role="group" aria-label="${esc(t('switchView'))}">
+  return `<div class="seg role-seg" role="group" aria-label="${esc(t('switchView'))}"><span class="seg-ind" aria-hidden="true"></span>
     ${[['member', 'role_member'], ['helper', 'role_helper']].map(([v, k]) =>
-      `<button class="${current === v ? 'on' : ''}" aria-pressed="${current === v}" onclick="switchView('${v}')">${esc(t(k))}</button>`).join('')}
+      `<button class="${current === v ? 'on' : ''}" aria-pressed="${current === v}" onclick="segTap(this); switchView('${v}')">${esc(t(k))}</button>`).join('')}
   </div>`;
+}
+
+// Two-option toggles (Family/Cook, English/عربي): one pill slides to the chosen option.
+// A tap records where the pill was; the pill is drawn after the new screen is in place (segPlay),
+// so it stretches from the old option to the new one and settles on it.
+let segSlideFrom = null;   // { key, index } of the option that was on before the tap
+function segKeyOf(seg) {
+  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : '';
+}
+function segTap(btn) {
+  const seg = btn.parentElement;
+  const on = seg.querySelector('button.on');
+  if (!on || on === btn) return;
+  segSlideFrom = { key: segKeyOf(seg), index: [...seg.querySelectorAll('button')].indexOf(on) };
+}
+function segPlay() {
+  document.querySelectorAll('.seg').forEach((seg) => {
+    const ind = seg.querySelector('.seg-ind');
+    const btns = seg.querySelectorAll('button');
+    const to = seg.querySelector('button.on');
+    if (!ind || !to) return;
+    const b = { x: to.offsetLeft, w: to.offsetWidth };
+    ind.style.left = b.x + 'px';
+    ind.style.width = b.w + 'px';
+    const from = segSlideFrom && segSlideFrom.key === segKeyOf(seg) ? btns[segSlideFrom.index] : null;
+    const ms = motion('--seg-ms', 460);
+    if (from && from !== to && ms && ind.animate) {
+      const a = { x: from.offsetLeft, w: from.offsetWidth };
+      // Middle keyframe: the pill covers both options (the stretch), then it shrinks onto the new one.
+      const left = Math.min(a.x, b.x), right = Math.max(a.x + a.w, b.x + b.w);
+      ind.animate([
+        { left: a.x + 'px', width: a.w + 'px' },
+        { left: left + 'px', width: (right - left) + 'px', offset: 0.45 },
+        { left: b.x + 'px', width: b.w + 'px' }
+      ], { duration: ms, easing: 'cubic-bezier(.4,0,.2,1)' });
+    }
+  });
+  segSlideFrom = null;
 }
 
 // ---------------------------------------------------------------

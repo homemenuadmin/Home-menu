@@ -615,8 +615,12 @@ button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .dk-no
 
 /* ---------- Two-way toggles: Family member / Cook, and English / عربي ---------- */
 .seg { display: inline-flex; flex: none; background: #ECE7DF; border-radius: 999px; padding: 3px; max-width: 100%; }
-.seg button { border: 0; background: transparent; color: var(--muted, #4B5563); font: inherit; font-size: 14px; font-weight: 700;
+.seg { position: relative; }
+/* The white pill is one element that slides between the options (positioned by segPlay in core.js). */
+.seg-ind { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; border-radius: 999px; background: #fff;
+  box-shadow: 0 1px 4px rgba(31,41,55,.15); pointer-events: none; }
+.seg button { position: relative; z-index: 1; border: 0; background: transparent; color: var(--muted, #4B5563); font: inherit; font-size: 14px; font-weight: 700;
   min-height: 40px; padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; touch-action: manipulation;
-  transition: background .3s ease, color .2s ease; }
-.seg button.on { background: #fff; color: var(--teal); box-shadow: 0 1px 4px rgba(31,41,55,.15); }
+  transition: color .25s ease; }
+.seg button.on { color: var(--teal); }
 .lang-card .seg { margin-top: 8px; }
