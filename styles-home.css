@@ -2,7 +2,6 @@
    Loaded after styles.css by index.html. */
 
 /* Keep the side menu above the screen, and the tour above the menu. */
-.nav { z-index: 50; }
 .tour { z-index: 60; }
 
 /* ---------------------------------------------------------------
@@ -184,7 +183,6 @@
    Arabic (right-to-left): the menu slides in from the right and stays on screen when open.
    This overrides the closed-position rule in styles.css, which was more specific than the open rule.
    --------------------------------------------------------------- */
-html[dir=rtl] .nav.open .drawer { transform: none; }
 
 /* Add to home screen card */
 .install-card { border-color: #9FD8CF; background: #F0FAF8; }
@@ -266,18 +264,10 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
                   color:var(--teal); font-weight:800; font-size:30px; }
 
 /* Top bar: the role menu, in the app's colours. */
-.role-menu { position:relative; }
-.role-toggle { min-height:44px; padding:6px 12px; border-radius:14px; border:2px solid var(--teal); background:var(--teal-soft);
                color:var(--teal); font:inherit; font-size:17px; font-weight:700; display:inline-flex; align-items:center; gap:6px;
                cursor:pointer; white-space:nowrap; }
-.role-toggle .caret { font-size:14px; }
-.role-scrim { position:fixed; inset:0; z-index:60; background:transparent; }
-.role-list { position:absolute; top:calc(100% + 6px); inset-inline-end:0; min-width:190px; z-index:70; background:#fff;
              border:2px solid var(--line); border-radius:16px; padding:6px; box-shadow:0 8px 24px rgba(31,41,55,.18); }
-.role-opt { display:block; width:100%; min-height:48px; padding:8px 12px; border:0; border-radius:12px; background:transparent;
             color:var(--ink); font:inherit; font-size:18px; text-align:start; cursor:pointer; }
-.role-opt:hover, .role-opt:focus-visible { background:var(--bg); }
-.role-opt.on { background:var(--teal-soft); color:var(--teal); font-weight:700; }
 
 /* Success messages: a small pop-up that goes away by itself. */
 .toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:90;
@@ -290,7 +280,6 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 .top-title { flex:1 1 auto; min-width:0; text-align:start; }
 .top-title h1 { font-size:28px; margin:4px 0 0; overflow-wrap:anywhere; }
 .top-actions { flex-wrap:nowrap; gap:6px; }
-.top-actions .role-toggle { font-size:15px; padding:6px 10px; min-height:44px; }
 .top-actions .btn.small { min-height:44px; font-size:16px; padding:6px 12px; }
 
 /* Cook's planner: the open day, and its meals and recipe below the week. */
@@ -388,7 +377,6 @@ html[dir=rtl] .nav.open .drawer { transform: none; }
 /* Room for the scrollbar is always reserved, so the page and the side menu never shift when it appears. */
 html { scrollbar-gutter: stable; }
 /* Timings for the side menu, the language switch and the opening sequence. Read by the script too. */
-.drawer { scrollbar-gutter: stable; }
 :root { --drawer-ms: 300ms; --scrim-ms: 250ms; --lang-ms: 180ms; --intro-hold-ms: 1900ms; --intro-glide-ms: 1500ms; --intro-sheet-ms: 2500ms; }
 
 /* Start-up splash, shown until the first screen is ready. It fades in after a short pause,
@@ -471,102 +459,152 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
 .steps-editor-actions { display: flex; gap: 10px; }
 .steps-editor-actions .btn { flex: 1; margin: 0; }
 
-/* Home suggestions, as in the approved mockup: the meal cards in a row, each with a stack of ideas,
-   the approved meal pinned, and the "None of these?" picker. */
-/* The deck takes its own touch gestures (swipes and stack drags), so the page doesn't scroll under them. Contents are clipped, so nothing scrolls sideways. */
-.sg-deck { position: relative; height: clamp(470px, 66vh, 600px); margin-top: 6px; perspective: 1200px; touch-action: none; user-select: none; overflow: hidden; overscroll-behavior: contain; }
-.sg-deck.dragging { cursor: grabbing; }
-.sg-deck.dragging .sg-slot { transition: none; }
-.sg-deck.instant .sg-slot, .sg-deck.instant .sg-card { transition: none !important; }
-.sg-slot { position: absolute; top: 0; bottom: 0; left: 50%; width: 84%; display: flex; flex-direction: column; background: #fff;
-  border: 1px solid var(--line, #E5E7EB); border-radius: 26px; padding: 14px; box-shadow: 0 10px 30px rgba(31,41,55,.12);
-  transition: transform .5s cubic-bezier(.16,1,.3,1), opacity .35s ease; will-change: transform; cursor: pointer; }
-.sg-slot.current { cursor: auto; }
-.sg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-.sg-head h3 { margin: 0; font-size: 16px; }
-.sg-head .status { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #FFF1C2; color: #7A4E00; }
-.sg-head .status.ok { background: #E0F7F2; color: #0F766E; }
-.sg-list { position: relative; flex: 1 1 auto; min-height: 150px; }
-.sg-empty { margin: 6px 4px 10px; }
+/* ---------- Home: the meal cards, as in the approved mockup (Mock-ups/home-cards-mockup.html) ----------
+   One meal time at a time, as a stack: the front card full size, the next ones behind it. A card swiped away keeps
+   a sliver at the edge, so it can be swiped back on. Tap a card to open it in place. */
+.dk-deck { position: relative; height: clamp(300px, calc(100vh - 340px), 520px); margin-top: 8px; overflow: hidden; overflow: clip; touch-action: pan-y; user-select: none; -webkit-user-select: none; overscroll-behavior: contain; }
+.dk-stage { position: absolute; inset: 0; }
+.dk-stage.enter-l { animation: dk-in-l .38s cubic-bezier(.16,1,.3,1) both; }
+.dk-stage.enter-r { animation: dk-in-r .38s cubic-bezier(.16,1,.3,1) both; }
+@keyframes dk-in-l { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+@keyframes dk-in-r { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes dk-fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes dk-pin { from { opacity: .35; transform: translateY(28px) scale(.94); } to { opacity: 1; transform: none; } }
 
-/* The ideas: each card sits in the stack, the front one full size. Its image takes the colour of the dish. */
-.sg-card.pick-item { position: absolute; left: 0; right: 0; top: 20px; height: 300px; margin: 0; padding: 0; display: flex; flex-direction: column;
-  overflow: hidden; background: #fff; border: 1px solid var(--line, #E5E7EB); border-radius: 22px; box-shadow: 0 6px 18px rgba(31,41,55,.08);
-  transition: top .6s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1), opacity .4s ease; }
-.sg-card.open { overflow-y: auto; scrollbar-width: none; cursor: default; }
-.sg-card.open::-webkit-scrollbar { display: none; }
-.sg-card.pinned { border-color: var(--teal, #0F766E); box-shadow: 0 10px 26px rgba(15,118,110,.18); }
-.sg-slot.approved .sg-pill { display: none; }
-.sg-img { position: relative; flex: 1 1 auto; min-height: 56px; display: grid; place-items: center; }
-.sg-card.open .sg-img { flex: 0 0 92px; }
-.sg-letter { font-size: 64px; font-weight: 700; color: rgba(31,41,55,.7); line-height: 1; }
-.sg-back { display: none; position: absolute; top: 10px; left: 10px; z-index: 2; height: 30px; padding: 0 12px; border: 0; border-radius: 999px;
-  background: rgba(255,255,255,.92); color: var(--teal, #0F766E); font: inherit; font-size: 13px; font-weight: 700; box-shadow: 0 2px 8px rgba(31,41,55,.12); cursor: pointer; }
-.sg-card.open:not(.pinned) .sg-back:not(.sg-change) { display: block; }
-.sg-card.pinned .sg-change { display: block; }
-.sg-card.pinned .sg-back:not(.sg-change) { display: none; }
-.sg-body { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px 14px; }
-.sg-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; width: 100%; }
-.sg-top strong { font-size: 17px; }
-.sg-top small { color: var(--muted, #4B5563); font-size: 12px; white-space: nowrap; }
-.sg-desc { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted, #4B5563); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.sg-card.open .sg-desc { display: block; -webkit-line-clamp: unset; }
-.sg-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
-.sg-tag.ok { background: #E0F7F2; color: #0F766E; }
-.sg-tag.warn { background: #FFE4DC; color: #C2410C; }
-.sg-tag.ai { background: #EFE7FD; color: #6D28D9; }
-.sg-card .pick-details { width: 100%; }
-.sg-card .sg-more { width: 100%; }
-.sg-card .btn.sg-approve { width: 100%; min-height: 38px; height: 38px; margin: auto 0 0; border-radius: 12px; font-size: 14px; }
-.sg-toggle { display: grid; width: 100%; height: 36px; margin-top: auto; border: 1.5px solid var(--teal, #0F766E); border-radius: 12px; background: #fff;
-  color: var(--teal, #0F766E); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-.sg-toggle > span { grid-area: 1 / 1; align-self: center; }
-.sg-toggle .when-edit { display: none; }
-.sg-card.open .sg-toggle .when-read { display: none; }
-.sg-card.open .sg-toggle .when-edit { display: block; }
-.sg-change { font: inherit; }
+.dk-card { position: absolute; top: 0; bottom: 0; left: 20px; right: 20px; border-radius: 28px; padding: 18px; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--accent, #D6EFD0) 22%, #fff); box-shadow: 0 10px 26px rgba(31,41,55,.14), 0 0 0 1px rgba(31,41,55,.06);
+  transform-origin: 50% 100%; will-change: transform; cursor: pointer; overflow: hidden; }
+.dk-card.pinned { box-shadow: 0 10px 26px rgba(31,41,55,.14), 0 0 0 2px var(--teal, #0F766E); }
+.dk-card.open { cursor: default; overflow-y: auto; overflow-x: hidden; left: 0; right: 0; top: 0; bottom: 0; transform: none !important; z-index: 30 !important; border-radius: 0; box-shadow: none; }
+.dk-stage.open-card .dk-card:not(.open) { opacity: 0 !important; pointer-events: none; }
+.dk-stage.open-card .dk-card.open { border-radius: 28px; left: 0; right: 0; }
+.dk-card.arrive { animation: dk-pin .55s cubic-bezier(.16,1,.3,1) both; }
+.dk-card.open .dk-desc, .dk-card.open .dk-ings, .dk-card.open .dk-tile { animation: dk-fade .42s cubic-bezier(.16,1,.3,1) .16s both; }
+.dk-card.open .dk-openonly { animation: dk-fade .42s cubic-bezier(.16,1,.3,1) .26s both; }
 
-/* "None of these?" and the picker that opens in the meal card. */
-.sg-pill { display: block; margin: 12px auto 0; border: 0; border-radius: 999px; padding: 9px 18px; background: #E0F7F2; color: #0F766E;
-  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(15,118,110,.12); }
-/* The picker grows out of the pill's place into the card, as in the mockup. */
-.sg-picker { position: absolute; z-index: 6; background: #E0F7F2; border: 1px solid transparent; border-radius: 999px; box-shadow: none;
-  visibility: hidden; pointer-events: none; overflow: hidden;
-  transition: left .5s cubic-bezier(.16,1,.3,1), top .5s cubic-bezier(.16,1,.3,1), width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1),
-    border-radius .5s cubic-bezier(.16,1,.3,1), background-color .4s ease, box-shadow .4s ease, border-color .4s ease, visibility 0s linear .5s; }
-.sg-slot.picking .sg-picker { visibility: visible; pointer-events: auto; background: #fff; border-color: var(--line, #E5E7EB); border-radius: 22px;
-  box-shadow: 0 -10px 30px rgba(31,41,55,.14);
-  transition: left .5s cubic-bezier(.16,1,.3,1), top .5s cubic-bezier(.16,1,.3,1), width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1),
-    border-radius .5s cubic-bezier(.16,1,.3,1), background-color .4s ease, box-shadow .4s ease, border-color .4s ease, visibility 0s; }
-.sg-picker-box { height: 100%; display: flex; flex-direction: column; padding: 12px 12px 14px; opacity: 0; transition: opacity .15s ease; }
-.sg-slot.picking .sg-picker-box { opacity: 1; transition: opacity .3s ease .3s; }
-.sg-list { transition: opacity .3s ease; }
-.sg-pill { transition: opacity .25s ease .35s; }
-.sg-slot.picking .sg-list, .sg-slot.picking .sg-pill { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
-.sg-pick-list { touch-action: pan-y; overscroll-behavior: contain; flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; padding: 2px 2px 8px; }
-.sg-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px; border: 2px solid var(--line, #E5E7EB); border-radius: 14px; background: #fff; }
-.sg-pick-thumb { width: 36px; height: 36px; flex: 0 0 36px; align-self: center; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
-.sg-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.sg-row-main strong { font-size: 14px; }
-.sg-row-main small { color: var(--muted, #4B5563); font-size: 12px; }
-.sg-picker .sg-pick-row .btn.small { flex: 0 0 auto; width: auto; min-height: 34px; height: 34px; padding: 0 12px; font-size: 13px; border-radius: 10px; }
-.sg-picker .btn.sg-cancel { width: 100%; min-height: 40px; height: 40px; margin-top: 6px; font-size: 15px; border-radius: 12px; flex: none; }
-.sg-pick-row .sg-row-main { min-width: 0; }
-.sg-pick-row .sg-row-main small { white-space: nowrap; }
+.dk-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: rgba(31,41,55,.62); min-height: 30px; flex: none; }
+.dk-status { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #FFF1C2; color: #7A4E00; white-space: nowrap; }
+.dk-status.ok { background: #E0F7F2; color: #0F766E; }
+.dk-title { font-size: 26px; line-height: 1.15; font-weight: 800; margin: 14px 0 10px; flex: none; overflow-wrap: anywhere; }
+.dk-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: none; }
+.dk-chip { font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.75); color: var(--ink, #1F2937); }
+.dk-chip.ready { background: #E0F7F2; color: #0F766E; }
+.dk-chip.ai { background: #EFE7FD; color: #6D28D9; }
+.dk-chip.miss { background: #FFE4DC; color: #C2410C; }
+.dk-desc { color: #374151; font-size: 15px; line-height: 1.4; margin: 12px 0 0; flex: none; }
+.dk-tile { width: 56px; height: 56px; border-radius: 18px; background: var(--accent, #D6EFD0); color: #1F2937; font-size: 26px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; margin: 14px 0 0; flex: none; }
+.dk-ings { display: none; margin-top: 14px; }
+.dk-card.open .dk-ings { display: block; }
+.dk-card.open .dk-desc { margin-top: 8px; font-size: 14px; }
+.dk-card.open .dk-title { font-size: 22px; margin: 10px 0 8px; }
+.dk-card.open .dk-tile { width: 46px; height: 46px; font-size: 22px; margin-top: 10px; border-radius: 15px; }
+.dk-card.open .ing, .dk-card.open .dk-ing { padding: 7px 2px; }
+.dk-h { font-size: 13px; font-weight: 700; color: rgba(31,41,55,.62); margin: 0 0 4px; }
+.dk-ing { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(31,41,55,.12); font-size: 15px; }
+.dk-ing b { color: var(--teal, #0F766E); }
+.dk-ing b.no { color: #C2410C; }
+.dk-ing b.opt { color: rgba(31,41,55,.55); font-weight: 600; font-size: 13px; }
+.dk-spacer { flex: 1; min-height: 12px; }
+.dk-foot { display: flex; gap: 8px; flex: none; margin-top: 14px; }
+.dk-foot .dk-btn { flex: 1; }
+.dk-openonly { display: none; }
+.dk-card.open .dk-openonly { display: flex; }
+.dk-card.open .dk-closed { display: none; }
+.dk-card.open .dk-foot { margin-top: auto; padding-top: 14px; }
+.dk-empty { position: absolute; left: 20px; right: 20px; top: 30px; text-align: center; }
 
-/* The meal cards' dots and the hint under them. */
-.sg-dots { display: flex; justify-content: center; align-items: center; gap: 7px; margin: 8px auto 0; padding: 6px 10px; width: fit-content; border-radius: 999px; background: rgba(31,41,55,.78); }
-.sg-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.45); cursor: pointer; transition: width .3s ease, background-color .3s ease; }
-.sg-dots button.on { width: 18px; background: #fff; }
-.sg-hint { text-align: center; font-size: 12px; color: var(--muted, #4B5563); margin: 6px 0 0; }
+.dk-btn { display: block; border: 0; text-align: center; background: var(--teal, #0F766E); color: #fff; font: inherit; font-weight: 700; border-radius: 999px;
+  padding: 14px; font-size: 16px; min-height: 48px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: transform .2s ease, background .2s ease; }
+.dk-btn:active { transform: scale(.96); }
+.dk-btn.soft { background: rgba(255,255,255,.85); color: var(--teal, #0F766E); }
+.dk-btn.ghost { background: rgba(255,255,255,.6); color: var(--ink, #1F2937); flex: 0 0 auto; padding: 14px 16px; }
+.dk-btn.small { display: inline-block; width: auto; flex: none; min-height: 38px; padding: 8px 14px; font-size: 14px; }
+.dk-btn.dk-wide { width: 100%; margin-top: 10px; }
 
-@media (prefers-reduced-motion: reduce) { .sg-card, .sg-slot, .sg-card.pinned { transition: none !important; animation: none !important; } }
+/* The editor inside an open card */
+.dk-edit-title { margin-top: 12px; }
+.dk-editor { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; animation: dk-fade .42s cubic-bezier(.16,1,.3,1) both; }
+.dk-editor label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: rgba(31,41,55,.7); }
+.dk-editor input { font: inherit; font-size: 16px; color: var(--ink, #1F2937); border: 1px solid rgba(31,41,55,.2); border-radius: 14px; padding: 10px 12px; background: rgba(255,255,255,.9); min-width: 0; width: 100%; }
+.dk-erow { display: flex; gap: 8px; align-items: center; }
+.dk-erow input { flex: 1; }
+.dk-erow button { border: 0; background: rgba(255,255,255,.9); color: #C2410C; font: inherit; font-size: 18px; font-weight: 800; width: 40px; height: 40px; border-radius: 14px; cursor: pointer; flex: none; }
+.dk-add { border: 1px dashed rgba(31,41,55,.35); background: transparent; color: var(--teal, #0F766E); font: inherit; font-weight: 700; padding: 10px; border-radius: 14px; cursor: pointer; }
+.dk-bar2 { display: flex; gap: 8px; }
+.dk-bar2 .dk-btn { flex: 1; }
+
+/* "None of these?" and the picker that slides up over the meal's cards */
+.dk-none-row { display: flex; justify-content: center; align-items: center; height: 46px; margin-top: 10px; transition: opacity .3s ease; }
+.dk-none-row.hide { display: none; }
+.dk-none { border: 1px solid var(--line, #E5E7EB); background: #fff; color: var(--teal, #0F766E); font: inherit; font-size: 13px; font-weight: 700; padding: 0 16px; height: 38px; border-radius: 999px; cursor: pointer; touch-action: manipulation; }
+.dk-sheet { position: absolute; left: 20px; right: 20px; top: 0; bottom: 0; background: #fff; border-radius: 28px; padding: 16px; z-index: 80; display: flex; flex-direction: column;
+  box-shadow: 0 14px 34px rgba(31,41,55,.25); transform: translateY(105%); visibility: hidden; transition: transform .45s cubic-bezier(.16,1,.3,1), visibility 0s linear .45s; }
+.dk-sheet.open { transform: none; visibility: visible; transition: transform .45s cubic-bezier(.16,1,.3,1); }
+.dk-sheet h4 { margin: 2px 0 10px; font-size: 17px; }
+.dk-list { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+.dk-pick { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--line, #E5E7EB); }
+.dk-thumb { width: 38px; height: 38px; border-radius: 12px; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #1F2937; }
+.dk-pick-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.dk-pick-main strong { font-size: 15px; overflow-wrap: anywhere; }
+.dk-pick-main small { color: var(--muted, #4B5563); font-size: 12.5px; }
+.dk-pick-main .dk-chip { font-size: 11.5px; padding: 2px 8px; }
+
+/* ---------- The meal times bar: grows out of the Home tab and stops just after Dinner, as in the mockup ---------- */
+#mtBar { position: absolute; z-index: 49; pointer-events: none; display: flex; align-items: center; gap: 2px; padding: 0 5px; overflow: hidden;
+  left: var(--hl, 20px); width: var(--hw, 80px); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); height: 50px; border-radius: 25px;
+  background: var(--teal, #0F766E); box-shadow: 0 8px 18px rgba(31,41,55,.25); opacity: 0;
+  transition: left .62s cubic-bezier(.34,1.35,.64,1), width .62s cubic-bezier(.34,1.35,.64,1), bottom .62s cubic-bezier(.34,1.35,.64,1),
+    height .62s cubic-bezier(.34,1.35,.64,1), border-radius .62s cubic-bezier(.34,1.35,.64,1), background .4s ease, opacity .2s ease; }
+#mtBar.show { pointer-events: auto; left: var(--hl, 20px); width: var(--ow, 240px); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); height: 40px;
+  border-radius: 20px; background: #1F2937; opacity: 1; animation: mt-wobble .62s cubic-bezier(.34,1.2,.64,1); }
+@keyframes mt-wobble { 0% { transform: scaleY(.84); } 40% { transform: scaleY(1.06); } 70% { transform: scaleY(.985); } 100% { transform: none; } }
+.mt-sub { position: relative; border: 0; background: transparent; color: #cbd5e1; font: inherit; font-size: 13px; font-weight: 700; padding: 0 12px; border-radius: 999px;
+  height: 30px; cursor: pointer; flex: 0 0 auto; touch-action: manipulation; white-space: nowrap; opacity: 0;
+  transition: opacity .15s ease, background .3s ease, color .2s ease; }
+#mtBar.show .mt-sub { opacity: 1; transition: opacity .25s ease .3s, background .3s ease, color .2s ease; }
+.mt-sub.on { background: #fff; color: #1F2937; }
+.mt-sub.done::after { content: ''; position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #2DD4BF; }
+.mt-sub.on.done::after { background: var(--teal, #0F766E); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-card, .dk-sheet, .dk-none-row, #mtBar, .mt-sub { transition: none !important; animation: none !important; }
+  .dk-stage.enter-l, .dk-stage.enter-r { animation: none; }
+}
 
 /* App feel: no pull-to-refresh or edge bounce, no grey flash on tap, no tap delay,
    and buttons and cards don't select text when held. */
 html, body { overscroll-behavior-y: none; }
 body { -webkit-tap-highlight-color: transparent; }
 button, a, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip { touch-action: manipulation; }
-button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .sg-pill, .sg-dots button, .sg-card, .sg-slot {
+button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .dk-none, .mt-sub, .dk-card, .dk-btn {
   -webkit-user-select: none; user-select: none; }
 
+
+/* ---------- Bottom tab bar: a floating dark bar along the bottom, the active tab opens into its label ---------- */
+#nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; pointer-events: none; }
+#nav[hidden] { display: none; }
+@media (max-width: 380px) { .tab-item { min-width: 44px; padding: 0 9px; font-size: 13px; gap: 4px; } .tab-bar { padding: 0 6px; } }
+@media (max-height: 700px) { .dk-card:not(.open) .dk-tile { display: none; } }
+#app { padding-bottom: 96px; }
+.tab-bar { pointer-events: auto; position: absolute; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  height: 66px; max-width: 560px; margin: 0 auto; background: #1F2937; border-radius: 30px; display: flex; align-items: center;
+  justify-content: space-around; gap: 4px; padding: 0 8px; box-shadow: 0 12px 28px rgba(31,41,55,.35); }
+.tab-item { height: 50px; min-width: 50px; border: 0; background: transparent; color: #9CA3AF; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; font: inherit; font-size: 14px;
+  font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
+  flex: 0 0 auto; transition: background .35s var(--ease-out, ease), color .25s ease; }
+.tab-item svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tab-label { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab-item.on { background: var(--teal); color: #fff; }
+.tab-item.on .tab-label { display: inline; }
+.tab-item:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+/* ---------- Two-way toggles: Family member / Cook, and English / عربي ---------- */
+.seg { display: inline-flex; flex: none; background: #ECE7DF; border-radius: 999px; padding: 3px; max-width: 100%; }
+.seg button { border: 0; background: transparent; color: var(--muted, #4B5563); font: inherit; font-size: 14px; font-weight: 700;
+  min-height: 40px; padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; touch-action: manipulation;
+  transition: background .3s ease, color .2s ease; }
+.seg button.on { background: #fff; color: var(--teal); box-shadow: 0 1px 4px rgba(31,41,55,.15); }
+.lang-card .seg { margin-top: 8px; }
