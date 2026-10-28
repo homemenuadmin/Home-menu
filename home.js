@@ -72,11 +72,36 @@ async function screenHome() {
 
 // Family: the greeting, then a sheet with each meal of the day: its ideas to approve, or the approved meal pinned.
 // The greeting is in the top bar now, so the family Home is the meals sheet alone. Restock is a pill beside the heading.
+// The pill opens a small card in place with what needs restocking, and a button to the Kitchen.
 function restockPillHtml(plan) {
   const n = plan.low.length;
   if (!n) return '';
-  return `<button class="restock-pill" onclick="go('kitchen')">${esc(n + ' · ' + t('needsRestock'))}</button>`;
+  const rows = plan.low.slice(0, 6).map((i) =>
+    `<li><span>${esc(nameOf(i.name_en, i.name_ar))}</span><span class="tag warn">${esc(t(i.level))}</span></li>`).join('');
+  const more = n > 6 ? `<p class="restock-more">+${n - 6}</p>` : '';
+  return `<div class="restock-wrap">
+    <button type="button" class="restock-pill" aria-expanded="false" onclick="toggleRestock(this)">${esc(n + ' · ' + t('needsRestock'))}</button>
+    <div class="restock-card">
+      <ul class="restock-list">${rows}</ul>${more}
+      <button type="button" class="restock-go" onclick="go('kitchen')">${esc(t('kitchen'))}</button>
+    </div>
+  </div>`;
 }
+
+function toggleRestock(btn) {
+  const w = btn.parentElement;
+  const open = !w.classList.contains('open');
+  w.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+}
+
+// Tapping anywhere else closes the restock card.
+document.addEventListener('click', (e) => {
+  const w = document.querySelector('.restock-wrap.open');
+  if (!w || e.target.closest('.restock-wrap')) return;
+  w.classList.remove('open');
+  w.querySelector('.restock-pill').setAttribute('aria-expanded', 'false');
+});
 
 function familyHomeHtml(plan, greeting, niceDate) {
   const sections = deckHtml(plan);
