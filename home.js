@@ -108,7 +108,7 @@ function familyHomeHtml(plan, greeting, niceDate) {
   return `<div class="home-stage" id="homeStage">
     <div class="home-sheet" id="homeSheet">
       <div class="home-meta">
-        <h3 class="home-sheet-title">${esc(t('todayMeals'))}</h3>
+        <h3 class="home-sheet-title">${esc(t('todaySuggestions'))}</h3>
         ${restockPillHtml(plan)}
       </div>
       ${sections}

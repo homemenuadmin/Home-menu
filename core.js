@@ -248,7 +248,7 @@ function render() {
   app.innerHTML = `
     <div class="top">
       <div class="top-title">
-        <div class="muted">${esc(homeTop ? hh.name + ' · ' + homeTop.niceDate : hh.name)}</div>
+        ${homeTop ? '' : `<div class="muted">${esc(hh.name)}</div>`}
         <h1>${esc(homeTop ? homeTop.greeting : t(tab))}</h1>
       </div>
       <div class="top-actions">${roleToggleHtml()}</div>
