@@ -235,6 +235,31 @@ function slotHtml(st) {
   </section>`;
 }
 
+// The HTML of each meal section and the kitchen alerts, as they are drawn. Compared with the last draw to find what changed.
+function deckParts(plan) {
+  return {
+    slots: Object.fromEntries(SLOTS.map((s) => [s, slotHtml(slotState(plan, s))])),
+    alerts: kitchenAlertsHtml(plan.low),
+  };
+}
+
+// Swaps only the meal sections that changed, so the rest of the row is not rebuilt and nothing replays.
+function patchDeck(plan, slots) {
+  const el = document.getElementById('sgDeck');
+  if (!el) return false;
+  el.classList.add('instant');
+  slots.forEach((slot) => {
+    const old = el.querySelector(`[data-sg-slot="${slot}"]`);
+    if (old) old.outerHTML = slotHtml(slotState(plan, slot));
+  });
+  layoutDeck();
+  paintStacks();
+  void el.offsetHeight;
+  el.classList.remove('instant');
+  if (deckRO) el.querySelectorAll('.sg-list').forEach((l) => deckRO.observe(l));
+  return true;
+}
+
 // The meal cards in a row, with dots under them, as in the mockup.
 function deckHtml(plan) {
   const slots = SLOTS.map((slot) => slotHtml(slotState(plan, slot))).join('');
@@ -406,7 +431,7 @@ function redrawHome() {
   const { greeting, niceDate } = homeTimes();
   cache.playIntro = false;
   cache.screenHtml = familyHomeHtml(lastPlan, greeting, niceDate);
-  cache.homeSig = homeSignature(lastPlan);   // the database's echo of this change is then seen as no change
+  cache.homeParts = deckParts(lastPlan);     // the database's echo of this change is then seen as no change
   render();
 }
 
@@ -591,10 +616,3 @@ document.addEventListener('pointerup', (e) => {
 window.addEventListener('resize', () => { layoutDeck(); paintStacks(); });
 
 // What is on the Home screen, as a short text. If it is the same as last time, the screen isn't redrawn.
-function homeSignature(plan) {
-  return JSON.stringify([
-    plan.meals.map((m) => [m.id, m.meal_slot, m.status, m.recipe_id]),
-    (cache.pickerRecipes || []).map((r) => [r.id, r.title_en, r.title_ar, r.minutes, r.ready, r.missing, r.source, r.desc]),
-    plan.low.map((p) => [p.id, p.level]),
-  ]);
-}

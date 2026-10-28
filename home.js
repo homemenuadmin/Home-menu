@@ -38,9 +38,17 @@ async function screenHome() {
     if (await makeSuggestions(plan)) plan = await loadPlan();
     startAiIdeas(plan);
     lastPlan = plan;
-    const sig = homeSignature(plan);
-    cache.homeSame = sig === cache.homeSig;
-    cache.homeSig = sig;
+    // Only the meal sections that changed are swapped in place; a quiet refresh with no change draws nothing.
+    const parts = deckParts(plan);
+    const old = cache.homeParts;
+    const changed = old ? SLOTS.filter((s) => parts.slots[s] !== old.slots[s]) : [];
+    const sameAlerts = !!old && parts.alerts === old.alerts;
+    cache.homeParts = parts;
+    if (old && sameAlerts && changed.length && cache.quietLoad && cache.screenTab === 'home' && patchDeck(plan, changed)) {
+      cache.homeSame = true;
+    } else {
+      cache.homeSame = !!old && sameAlerts && !changed.length;
+    }
     const html = familyHomeHtml(plan, greeting, niceDate);
     saveHomeHtml(html);
     return html;

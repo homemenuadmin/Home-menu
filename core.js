@@ -458,6 +458,7 @@ async function loadTab(opts = {}) {
   if (tab === 'home' && !introPlayed()) { homeLanded = false; cache.playIntro = true; }
   if (!screenBusy && !quiet) cache.screenHtml = (tab === 'home' && savedHomeHtml()) || skeletonHtml();
   cache.loading = true;
+  cache.quietLoad = quiet;
   if (!quiet) render();
   try {
     if (tab === 'home') cache.screenHtml = await screenHome();
@@ -529,7 +530,7 @@ async function refreshNow() {
     return;
   }
   // Wait for a load in progress, a fold closing, or the intro on Home to finish.
-  if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded) || (typeof deckBusy !== 'undefined' && deckBusy)) {
+  if (cache.loading || document.querySelector('.closing') || (tab === 'home' && typeof homeLanded !== 'undefined' && !homeLanded) || (typeof deckBusy !== 'undefined' && deckBusy) || (typeof slideDrag !== 'undefined' && (slideDrag || listDrag))) {
     liveTimer = setTimeout(refreshNow, 200);
     return;
   }
