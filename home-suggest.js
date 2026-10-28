@@ -281,15 +281,22 @@ function frontIndex() {
 function layoutCards(animate, skip, dx) {
   const stage = document.getElementById('sgStage');
   if (!stage || !lastPlan) return;
-  const u = ui(curSlot()), idx = frontIndex(), sw = stage.clientWidth || 340;
+  const u = ui(curSlot());
+  // The front card index always stays on a real idea, so the stack can never empty out.
+  const count = stage.querySelectorAll('.dk-card').length;
+  if (count) u.idx = Math.max(0, Math.min(u.idx, count - 1));
+  const idx = frontIndex(), sw = stage.clientWidth || 340;
   stage.querySelectorAll('.dk-card').forEach((el, i) => {
     if (el === skip) return;
     const off = i - idx, expanded = off === 0 && u.open;
+    const hidden = !expanded && (off > 2 || off < -1);
     el.style.transition = animate ? 'transform .45s cubic-bezier(.16,1,.3,1), opacity .3s ease' : 'none';
     el.style.transitionDelay = '0ms';
     el.style.transform = expanded ? 'none' : pose(off, sw, dx);
     el.style.zIndex = String(expanded ? 30 : off === 0 ? 30 : off < 0 ? 40 : 26 - off);
-    el.style.opacity = (!expanded && (off > 2 || off < -1)) ? '0' : '1';
+    el.style.opacity = hidden ? '0' : '1';
+    // A card that is out of view must not take taps (it is still in the page, just faded out).
+    el.style.pointerEvents = hidden ? 'none' : '';
   });
   const none = document.getElementById('sgNoneRow');
   if (none) none.classList.toggle('hide', !!slotState(lastPlan, curSlot()).approved || u.open);
@@ -369,7 +376,8 @@ function drawMealTimes() {
   const bar = document.getElementById('mtBar');
   if (!bar) return;
   const on = tab === 'home' && !!lastPlan && !!document.getElementById('sgStage');
-  if (!lastPlan) return;
+  // Off the Family Home (Cook, other tabs, no plan yet) the bar hides, whatever else is true.
+  if (!on) { bar.classList.remove('show'); return; }
   bar.innerHTML = SLOTS.map((s, i) => `<button class="mt-sub${i === deck.cur ? ' on' : ''}${slotState(lastPlan, s).approved ? ' done' : ''}" data-dk-slot="${i}" role="tab" aria-selected="${i === deck.cur}">${esc(t(s))}</button>`).join('');
   placeMealTimes(bar);
   if (on && !bar.classList.contains('show')) {
@@ -648,13 +656,16 @@ document.addEventListener('pointerdown', (e) => {
   if (e.target.closest('button, input, textarea, select, label')) return;   // taps and typing on a card's own controls
   const u = ui(curSlot());
   if (stage.dataset.pinned === '1' || u.open || deckBusy || !lastPlan) return;
-  drag = { x0: e.clientX, id: e.pointerId, moved: false, dx: 0 };
+  drag = { x0: e.clientX, y0: e.clientY, id: e.pointerId, moved: false, dx: 0, dy: 0 };
 });
 document.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const dx = e.clientX - drag.x0;
+  drag.dy = e.clientY - drag.y0;
   if (!drag.moved && Math.abs(dx) > 8) drag.moved = true;
   if (!drag.moved) return;
+  // Only a mostly sideways move drags the stack; a move up or down is left to the page.
+  if (Math.abs(drag.dy) > Math.abs(dx)) { drag.dx = 0; layoutCards(true); return; }
   const u = ui(curSlot()), n = slotState(lastPlan, curSlot()).items.length;
   const atEnd = (dx > 0 && u.idx === 0) || (dx < 0 && u.idx === n - 1);
   drag.dx = dx;
@@ -666,9 +677,11 @@ function endDrag(e) {
   drag = null;
   if (!d.moved) return;
   suppressClick = true;
+  // A cancelled touch (the browser took it for a scroll) never moves the stack; only a real swipe does.
+  const swipe = !(e && e.type === 'pointercancel') && Math.abs(d.dx) > Math.abs(d.dy || 0);
   const u = ui(curSlot()), n = slotState(lastPlan, curSlot()).items.length;
-  if (d.dx < -50 && u.idx < n - 1) u.idx++;
-  else if (d.dx > 50 && u.idx > 0) u.idx--;
+  if (swipe && d.dx < -50 && u.idx < n - 1) u.idx++;
+  else if (swipe && d.dx > 50 && u.idx > 0) u.idx--;
   layoutCards(true);
 }
 document.addEventListener('pointerup', endDrag);

@@ -195,6 +195,9 @@ async function switchView(next) {
   if (!ROLE_TABS[activeRole()].includes(tab) && tab !== 'profile') tab = 'home';
   mealForm = false; mealEditId = null; openRecipeId = null;
   screenDir = ms ? (goingRight ? 'from-right' : 'from-left') : '';
+  // The meal times bar belongs to the Family Home only, so it goes before the Cook screen comes in.
+  const mtb = document.getElementById('mtBar');
+  if (mtb) mtb.classList.remove('show');
   await loadTab();
   if (exit) exit.cancel();
 }
