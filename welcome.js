@@ -46,7 +46,7 @@ function startSignIn() {
 function buildTour() {
   const steps = [
     { tab: 'home', title: 'tourHomeT', text: 'tourHomeB' },
-    { tab: 'home', menu: true, title: 'tourMenuT', text: 'tourMenuB' },
+    { tab: 'home', title: 'tourMenuT', text: 'tourMenuB' },
     { tab: 'today', title: 'tourTodayT', text: 'tourTodayB' },
     { tab: 'kitchen', title: 'tourKitchenT', text: 'tourKitchenB' },
     { tab: 'recipes', title: 'tourRecipesT', text: 'tourRecipesB' },
@@ -60,14 +60,12 @@ function buildTour() {
 function startTour() {
   tourList = buildTour();
   tourStep = 0;
-  drawerOpen = false;
   tab = 'home';
 }
 
 // Shows the current tour step: switches to its screen, and opens the menu if the step is about the menu.
 async function showTourStep() {
   const s = tourList[tourStep];
-  drawerOpen = !!s.menu;
   notice = ''; problem = '';
   if (s.tab !== tab) {
     tab = s.tab;
@@ -88,7 +86,6 @@ async function tourNext() {
 async function finishTour() {
   tourStep = null;
   tourList = [];
-  drawerOpen = false;
   hh.tourDone = true;
   try {
     await sb.from('member_settings').update({ tour_done: true }).eq('user_id', session.user.id);
