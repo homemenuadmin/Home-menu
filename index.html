@@ -44,7 +44,7 @@
 <script src="main.js"></script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
 <script>
-// Checks for a newer version when the app comes back to the front, and every 5 minutes.
+// Checks for a newer version when the app comes back to the front, and every minute.
 // version.json is written by the sync script on each push. A new one shows a bar to reload; nothing reloads by itself.
 (function () {
   var loaded = null;
@@ -69,7 +69,7 @@
   }
   check();
   document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
-  setInterval(check, 5 * 60 * 1000);
+  setInterval(check, 60 * 1000);
 })();
 </script>
 </body>

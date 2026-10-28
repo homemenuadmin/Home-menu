@@ -13,7 +13,7 @@ let suppressClick = false;                 // a drag just ended, so the click th
 // Everything the Home screen needs: today's meals, recipes, the kitchen and the household's rules.
 async function loadPlan() {
   const today = todayIso();
-  const [meals, recipes, ings, pantry, rules] = await Promise.all([
+  const [meals, recipes, ings, pantry, rules, me] = await Promise.all([
     sb.from('meals')
       .select('id, meal_slot, servings, status, recipe_id, recipes(title_en, title_ar)')
       .eq('household_id', hh.id)
@@ -24,8 +24,10 @@ async function loadPlan() {
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('id, ingredient_key, name_en, name_ar, level').eq('household_id', hh.id).order('name_en'),
     sb.from('rules').select('kind, ingredient_key').eq('household_id', hh.id),
+    sb.from('profiles').select('nickname').eq('id', session.user.id).maybeSingle(),
   ]);
   for (const r of [meals, recipes, ings, pantry, rules]) if (r.error) throw r.error;
+  cache.profileNick = (me && me.data && me.data.nickname) || cache.profileNick || '';
   const pantryRows = pantry.data || [];
   cache.pickerRecipes = buildPickerRecipes(recipes.data || [], ings.data || [], pantryRows, rules.data || []);
   const raw = new Map((recipes.data || []).map((r) => [r.id, r]));
@@ -382,8 +384,10 @@ let lastPlan = null;
 
 function homeTimes() {
   const hour = new Date().getHours();
+  const name = (cache.profileNick || '').trim();
+  const hello = hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening');
   return {
-    greeting: hour < 12 ? t('greetMorning') : hour < 18 ? t('greetAfternoon') : t('greetEvening'),
+    greeting: name ? hello + ', ' + name : hello,
     niceDate: new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' }),
   };
 }
