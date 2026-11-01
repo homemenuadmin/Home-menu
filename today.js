@@ -43,7 +43,7 @@ const CAL_EXPAND = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 const CAL_SHRINK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
 // The card's state: expanded over the calendar, and the meal whose edit panel is open with its working copy.
 let calExpanded = false;
-let calDraft = null;   // { id, servings, ings: [{ name, qty, have }], row: index | 'new' | null }
+let calDraft = null;   // { id, servings, ings: [{ name, qty, have }] }
 // One meal's row in its slot's list.
 function mealRowHtml(m) {
   const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
@@ -429,7 +429,7 @@ function editMeal(id) {
   closeEditNow();
   // The working copy: the meal's own ingredients if they were changed, otherwise the recipe's.
   calDraft = {
-    id, servings: meal.servings, row: null,
+    id, servings: meal.servings,
     ings: (meal.ingredient_changes || recipeIngsFor(meal)).map((g) => ({ ...g })),
   };
   mealEditId = id; mealForm = false;
@@ -534,22 +534,31 @@ function recipeIngsFor(meal) {
   })) : [];
 }
 
-// The edit panel for a meal: its ingredients (each can be changed, or added to), the servings, and Save / Cancel.
+// The edit panel for a meal. It is the editing menu, as on the Recipes tab: a stepper and × on each ingredient,
+// and "Add an ingredient" at the bottom. Done saves the meal; the servings, Change meal and Cancel sit below.
 function calEditPanelHtml(meal, shut) {
   const d = calDraft;
-  const row = (i) => d.row === i
-    ? `<div class="cal-ing cal-ing-edit"><input data-f="name" value="${esc(d.ings[i].name)}" aria-label="${esc(t('calIngredient'))}"><input data-f="qty" value="${esc(d.ings[i].qty)}" aria-label="${esc(t('calAmount'))}"><button class="cal-mini solid" onclick="calIngDone(${i})">${esc(t('calDone'))}</button></div>`
-    : `<div class="cal-ing"><span>${esc(d.ings[i].name)} <small>${esc(d.ings[i].qty)}</small></span><span class="${d.ings[i].have ? 'have' : 'miss'}">${esc(t(d.ings[i].have ? 'calInKitchen' : 'missing'))}</span><button class="cal-mini" onclick="calIngChange(${i})">${esc(t('calChange'))}</button></div>`;
-  const adder = d.row === 'new'
-    ? `<div class="cal-ing cal-ing-edit"><input data-f="name" placeholder="${esc(t('calIngredient'))}" aria-label="${esc(t('calIngredient'))}"><input data-f="qty" placeholder="${esc(t('calAmount'))}" aria-label="${esc(t('calAmount'))}"><button class="cal-mini solid" onclick="calIngDone('new')">${esc(t('calDone'))}</button></div>`
-    : `<button class="cal-mini cal-add-ing" onclick="calIngAdd()">${esc(t('calAddIngredient'))}</button>`;
-  return `<div class="cal-exp-wrap${shut ? ' shut' : ''}"><div class="cal-exp"><div class="cal-exp-in">
-    ${d.ings.map((g, i) => row(i)).join('')}${adder}
+  const rows = d.ings.map((g, i) => {
+    const stepper = parseAmount(g.qty)
+      ? `<span class="ing-step"><button type="button" onclick="calIngStep(${i}, -1)" aria-label="−">−</button>
+          <span class="ing-amt">${esc(g.qty)}</span><button type="button" onclick="calIngStep(${i}, 1)" aria-label="+">+</button></span>`
+      : `<span class="ing-amt">${esc(g.qty || '')}</span>`;
+    return `<li style="--i:${i}"><div class="ing-line"><span class="ing-name">${esc(g.name)}</span><span class="ing-mark"></span>
+      <span class="ing-tools">${stepper}<button type="button" class="ing-x" onclick="calIngRemove(${i})" aria-label="${esc(t('removeIngredient'))} ${esc(g.name)}">×</button></span></div></li>`;
+  }).join('');
+  return `<div class="cal-exp-wrap${shut ? ' shut' : ''}"><div class="cal-exp"><div class="cal-exp-in edit-menu editing">
+    <div class="ings-head"><h3>${esc(t('ingredients'))}</h3>
+      <button type="button" class="pick-edit-btn" onclick="calEditSave('${meal.id}')"><span class="when-edit">${esc(t('done'))}</span></button></div>
+    <ul class="cal-ings">${rows}</ul>
+    <div class="ing-add-wrap"><div class="ing-add">
+      <input class="ing-new-name" id="calNewName" placeholder="${esc(t('addIngredient'))}" aria-label="${esc(t('addIngredient'))}">
+      <input class="ing-new-qty" id="calNewQty" placeholder="${esc(t('ingAmount'))}" aria-label="${esc(t('ingAmount'))}">
+      <button type="button" class="ing-add-btn" onclick="calIngAdd()">${esc(t('ingAdd'))}</button>
+    </div></div>
     <div class="cal-exp-foot">
-      <div class="cal-stepper"><span>${esc(t('calServings'))}</span><button onclick="calServ(-1)" aria-label="−">&minus;</button><output id="calServOut">${d.servings}</output><button onclick="calServ(1)" aria-label="+">+</button></div>
-      <div class="cal-exp-btns"><button class="cal-mini" onclick="calChangeMeal('${meal.id}')">${esc(t('calChangeMeal'))}</button>
-        <button class="cal-mini" onclick="calEditCancel()">${esc(t('cancel'))}</button>
-        <button class="cal-mini solid" onclick="calEditSave('${meal.id}')">${esc(t('save'))}</button></div>
+      <div class="cal-stepper"><span>${esc(t('calServings'))}</span><button type="button" onclick="calServ(-1)" aria-label="−">&minus;</button><output id="calServOut">${d.servings}</output><button type="button" onclick="calServ(1)" aria-label="+">+</button></div>
+      <div class="cal-exp-btns"><button type="button" class="cal-mini" onclick="calChangeMeal('${meal.id}')">${esc(t('calChangeMeal'))}</button>
+        <button type="button" class="cal-mini" onclick="calEditCancel()">${esc(t('cancel'))}</button></div>
     </div>
   </div></div></div>`;
 }
@@ -561,20 +570,26 @@ function redrawEditPanel() {
   if (wrap && meal) wrap.outerHTML = calEditPanelHtml(meal, false);
   syncScreenHtml();
 }
-// Reads the row being changed, into the working copy.
-function commitIngRow() {
-  const i = calDraft.row;
-  const row = document.querySelector('.cal-ing-edit');
-  if (i === null || !row) return;
-  const name = row.querySelector('[data-f=name]').value.trim();
-  const qty = row.querySelector('[data-f=qty]').value.trim();
-  if (i === 'new') { if (name) calDraft.ings.push({ name, qty, have: false }); }
-  else { const old = calDraft.ings[i]; calDraft.ings[i] = { name: name || old.name, qty, have: old.have }; }
-  calDraft.row = null;
+// A stepper tap moves the amount, as on the Recipes tab. Nothing is saved until Done.
+function calIngStep(i, dir) {
+  const g = calDraft.ings[i];
+  const p = parseAmount(g.qty);
+  if (!p) return;
+  const step = stepFor(p.unit);
+  g.qty = fmtAmount(Math.max(step, +(p.n + dir * step).toFixed(2)), p.unit);
+  const amt = document.querySelectorAll('.cal-ings > li')[i];
+  if (amt) amt.querySelector('.ing-amt').textContent = g.qty;
 }
-function calIngChange(i) { commitIngRow(); calDraft.row = i; redrawEditPanel(); }
-function calIngAdd() { commitIngRow(); calDraft.row = 'new'; redrawEditPanel(); }
-function calIngDone(i) { calDraft.row = i; commitIngRow(); redrawEditPanel(); }
+function calIngRemove(i) { calDraft.ings.splice(i, 1); redrawEditPanel(); }
+function calIngAdd() {
+  const name = document.getElementById('calNewName');
+  const qty = document.getElementById('calNewQty');
+  if (!name) return;
+  const n = name.value.trim();
+  if (!n) return name.focus();
+  calDraft.ings.push({ name: n, qty: qty.value.trim(), have: false });
+  redrawEditPanel();
+}
 function calServ(d) {
   calDraft.servings = Math.min(12, Math.max(1, calDraft.servings + d));
   const out = document.getElementById('calServOut');
@@ -604,7 +619,6 @@ function calEditCancel() {
 // Save: the servings and the ingredient changes go to the meal, then the tab reloads quietly.
 async function calEditSave(id) {
   if (!calDraft || calDraft.id !== id) return;
-  commitIngRow();
   const wrap = document.querySelector(`li[data-meal="${id}"] .cal-exp-wrap`);
   if (wrap) wrap.classList.add('shut');
   const { data, error } = await sb.from('meals')
