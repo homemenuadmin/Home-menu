@@ -280,6 +280,8 @@ function render() {
     ${tourHtml()}`;
   restoreScroll(keepScroll);
   segPlay();
+  // The meal times bar is decided again now the new screen is in place (the call above saw the old one).
+  if (typeof drawMealTimes === 'function') drawMealTimes();
   // The family Home sets up its greeting and meals sheet once the screen is in place.
   if (tab === 'home') setupHome(cache.playIntro);
 }
