@@ -410,6 +410,7 @@ function redrawHome() {
   cache.playIntro = false;
   cache.screenHtml = familyHomeHtml(lastPlan, greeting, niceDate);
   cache.homeParts = deckParts(lastPlan);     // the database's echo of this change is then seen as no change
+  savePlanRecord();                          // the kept plan follows approve, change and picks
   render();
 }
 

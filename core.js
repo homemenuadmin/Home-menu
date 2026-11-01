@@ -496,7 +496,13 @@ async function loadTab(opts = {}) {
   screenBusy = cache.screenTab === tab && !quiet;
   // The greeting and the sheet rising play once each time the app is opened, not on every visit to Home.
   if (tab === 'home' && !introPlayed()) { homeLanded = false; cache.playIntro = true; }
-  if (!screenBusy && !quiet) cache.screenHtml = (tab === 'home' && savedHomeHtml()) || skeletonHtml();
+  if (!screenBusy && !quiet) {
+    // Family Home: today's kept plan draws at once; otherwise placeholder cards pulse while the plan is fetched.
+    const family = tab === 'home' && activeRole() === 'member';
+    const kept = family ? keptHomeHtml() : '';
+    cache.loadingDeck = family && !kept;
+    cache.screenHtml = kept || (family ? deckLoadingHtml() : skeletonHtml());
+  }
   cache.loading = true;
   cache.quietLoad = quiet;
   if (!quiet) render();

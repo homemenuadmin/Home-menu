@@ -16,16 +16,47 @@ function markIntroPlayed() {
   try { sessionStorage.setItem('homemenu-intro', '1'); } catch (e) {}
 }
 
-// The last family Home drawn is kept on this device, so the next open shows it at once while fresh data loads.
-// Keyed by household and language, because the markup is written in one language for one household.
-function lastHomeKey() {
-  return 'homemenu-home-last:' + ((typeof hh !== 'undefined' && hh && hh.id) || 'none') + ':' + (typeof lang !== 'undefined' ? lang : 'en');
+// Today's family plan is kept on this device, so the next open draws the cards at once.
+// It is fetched from the database only when the day has changed (or nothing is kept yet).
+// While the app is open, changes from the household still arrive through the live channel.
+function planKey() {
+  return 'homemenu-plan:' + ((typeof hh !== 'undefined' && hh && hh.id) || 'none');
 }
-function savedHomeHtml() {
-  try { return localStorage.getItem(lastHomeKey()) || ''; } catch (e) { return ''; }
+function savePlanRecord() {
+  if (!lastPlan || !hh) return;
+  // A meal still being saved has a temporary id; the plan is kept once the database has its real one.
+  if (lastPlan.meals.some((m) => String(m.id).startsWith('tmp-'))) return;
+  try {
+    localStorage.setItem(planKey(), JSON.stringify({ day: lastPlan.today, plan: lastPlan, pickerRecipes: cache.pickerRecipes || [], nick: cache.profileNick || '' }));
+  } catch (e) { /* storage full or blocked: the next open simply loads from the database */ }
 }
-function saveHomeHtml(html) {
-  try { localStorage.setItem(lastHomeKey(), html); } catch (e) { /* storage full or blocked: the app simply loads as before */ }
+function keptTodayPlan() {
+  try {
+    const r = JSON.parse(localStorage.getItem(planKey()) || 'null');
+    return r && r.plan && r.day === todayIso() ? r : null;
+  } catch (e) { return null; }
+}
+// The cards from today's kept plan, ready to draw now; '' when there is no plan kept for today.
+function keptHomeHtml() {
+  if (activeRole() !== 'member') return '';
+  const r = keptTodayPlan();
+  if (!r) return '';
+  lastPlan = r.plan;
+  cache.pickerRecipes = r.pickerRecipes || [];
+  cache.profileNick = r.nick || '';
+  cache.homeParts = deckParts(lastPlan);
+  cache.homeSame = false;
+  const { greeting, niceDate } = homeTimes();
+  return familyHomeHtml(lastPlan, greeting, niceDate);
+}
+// The first open of a day, while the plan is fetched: placeholder cards that pulse. The real cards slide in when it lands.
+function deckLoadingHtml() {
+  return `<div class="home-stage" id="homeStage"><div class="home-sheet">
+    <div class="home-meta"><h3 class="home-sheet-title">${esc(t('todaySuggestions'))}</h3></div>
+    <div class="dk-loading" aria-hidden="true">
+      <div class="dk-loading-back"></div>
+      <div class="dk-loading-front"><span class="dk-loading-dot"></span><span class="dk-loading-dot"></span><span class="dk-loading-dot"></span></div>
+    </div></div></div>`;
 }
 
 async function screenHome() {
@@ -34,6 +65,10 @@ async function screenHome() {
   const niceDate = new Date().toLocaleDateString(t('dateLocale'), { weekday: 'long', day: 'numeric', month: 'long' });
 
   if (activeRole() === 'member') {
+    // Today's plan is already drawn from the device: no database trip, unless a quiet live refresh asked for one.
+    if (!cache.quietLoad && lastPlan && lastPlan.today === todayIso() && keptTodayPlan()) {
+      return familyHomeHtml(lastPlan, greeting, niceDate);
+    }
     let plan = await loadPlan();
     if (await makeSuggestions(plan)) plan = await loadPlan();
     startAiIdeas(plan);
@@ -50,7 +85,9 @@ async function screenHome() {
       cache.homeSame = !!old && sameAlerts && !changed.length;
     }
     const html = familyHomeHtml(plan, greeting, niceDate);
-    saveHomeHtml(html);
+    savePlanRecord();
+    // The placeholder cards were on screen: the real ones slide in from the side.
+    if (cache.loadingDeck) { cache.loadingDeck = false; deck.cardsInNext = true; }
     return html;
   }
 
