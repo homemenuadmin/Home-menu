@@ -634,6 +634,11 @@ button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .dk-no
 .tab-label { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tab-item.on { background: var(--teal); color: #fff; }
 .tab-item.on .tab-label { display: inline; }
+/* The teal pill behind the chosen tab is one element that slides between tabs (positioned by segPlay in core.js). */
+.tab-bar .seg-ind { position: absolute; top: 50%; bottom: auto; height: 50px; margin-top: -25px; left: 0; width: 0; border-radius: 999px;
+  background: var(--teal); box-shadow: none; pointer-events: none; }
+.tab-bar .tab-item { position: relative; z-index: 1; }
+.tab-bar .tab-item.on { background: transparent; }
 .tab-item:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 /* ---------- Two-way toggles: Family member / Cook, and English / عربي ---------- */

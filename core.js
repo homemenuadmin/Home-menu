@@ -263,6 +263,9 @@ function render() {
   const key = tabBarKey();
   if (nav.dataset.key !== key) { nav.dataset.key = key; nav.innerHTML = tabBarHtml(); }
   nav.querySelectorAll('.tab-item').forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle('on', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
+  // The bottom bar's pill slides to the chosen tab (a tap recorded where it was).
+  const tabBar = nav.querySelector('.tab-bar');
+  if (tabBar) segPlay(tabBar);
   if (typeof drawMealTimes === 'function') drawMealTimes();   // the meal times bar on Home (home-suggest.js); it hides on the other tabs
   const keepScroll = captureScroll();
   // The family Home's top bar is the greeting, as in the mockup.
@@ -301,9 +304,9 @@ function tabBarKey() { return [hh.id, can.people(), activeRole(), lang].join('|'
 
 function tabBarHtml() {
   const items = [...ROLE_TABS[activeRole()], 'profile'];
-  return `<nav class="tab-bar" aria-label="${esc(t('menu'))}">${items.map((k) => {
+  return `<nav class="tab-bar" aria-label="${esc(t('menu'))}"><span class="seg-ind" aria-hidden="true"></span>${items.map((k) => {
     const label = (k === 'today' || k === 'planner') ? t('mealsTab') : t(k);
-    return `<button class="tab-item${tab === k ? ' on' : ''}" data-tab="${k}" onclick="go('${k}')" aria-label="${esc(label)}" ${tab === k ? 'aria-current="page"' : ''}>
+    return `<button class="tab-item${tab === k ? ' on' : ''}" data-tab="${k}" onclick="segTap(this); go('${k}')" aria-label="${esc(label)}" ${tab === k ? 'aria-current="page"' : ''}>
       <svg viewBox="0 0 24 24" aria-hidden="true">${TAB_ICONS[k]}</svg>
       <span class="tab-label">${esc(label)}</span>
     </button>`;
@@ -325,7 +328,7 @@ function roleToggleHtml() {
 let segSlideFrom = null;   // { key, index } of the option that was on before the tap
 // The Breakfast / Lunch / Dinner bar (#mtBar) works the same way, with its own options.
 function segKeyOf(seg) {
-  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : seg.id === 'mtBar' ? 'meal' : '';
+  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : seg.id === 'mtBar' ? 'meal' : seg.classList.contains('tab-bar') ? 'nav' : '';
 }
 function segItems(seg) {
   return seg.id === 'mtBar' ? seg.querySelectorAll('.mt-sub') : seg.querySelectorAll('button');
@@ -499,6 +502,7 @@ async function go(k) {
 }
 
 // quiet: the screen already shows what it should (for example, after Cancel), so it is not dimmed or redrawn while the data reloads.
+let loadSeq = 0;   // counts the tab loads; only the latest one may draw
 async function loadTab(opts = {}) {
   const quiet = !!opts.quiet;
   // Same screen: keep what is showing, dimmed, until the new data arrives. Different screen: soft placeholder shapes.
@@ -515,20 +519,28 @@ async function loadTab(opts = {}) {
   cache.loading = true;
   cache.quietLoad = quiet;
   if (!quiet) render();
+  // A tab change starts a new load. If the user has moved on while this one was fetching, its result is dropped,
+  // so an older tab can never draw over the one now showing.
+  const seq = quiet ? loadSeq : ++loadSeq;
+  const forTab = tab;
+  let html = null;
   try {
-    if (tab === 'home') cache.screenHtml = await screenHome();
-    if (tab === 'today') cache.screenHtml = await screenToday();
-    if (tab === 'planner') cache.screenHtml = await screenPlanner();
-    if (tab === 'kitchen') cache.screenHtml = await screenKitchen();
-    if (tab === 'recipes') cache.screenHtml = await screenRecipes();
-    if (tab === 'profile') cache.screenHtml = await screenProfile();
+    if (forTab === 'home') html = await screenHome();
+    if (forTab === 'today') html = await screenToday();
+    if (forTab === 'planner') html = await screenPlanner();
+    if (forTab === 'kitchen') html = await screenKitchen();
+    if (forTab === 'recipes') html = await screenRecipes();
+    if (forTab === 'profile') html = await screenProfile();
   } catch (e) {
-    cache.screenHtml = '';
+    if (seq !== loadSeq) return;
+    html = '';
     problem = t('errorPrefix') + (e.message || e);
   }
+  if (seq !== loadSeq) return;
+  if (html !== null) cache.screenHtml = html;
   cache.loading = false;
   screenBusy = false;
-  cache.screenTab = tab;
+  cache.screenTab = forTab;
   // A quiet refresh that changes nothing on Home leaves the drawn screen alone: no rebuild, so nothing replays.
   if (quiet && tab === 'home' && cache.homeSame && cache.screenTab === 'home') { ensureLive(); return; }
   render();
