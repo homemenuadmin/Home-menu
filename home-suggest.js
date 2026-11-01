@@ -316,6 +316,8 @@ function renderStage(opts) {
   stage.innerHTML = items.length
     ? items.map((it, i) => cardHtml(it, i, items.length, pinned, i === (pinned ? 0 : u.idx), u)).join('')
     : `<p class="muted dk-empty">${esc(t('noSuggestions'))}</p>`;
+  // An "open" card that is not on screen would leave the stack stuck (taps and drags ignored), so it is closed.
+  if (u.open && !stage.querySelector('.dk-card.open')) { u.open = false; u.editing = false; u.draft = null; stage.classList.remove('open-card'); }
   layoutCards(false);
   const first = pinned ? 0 : u.idx;
   if (opts.arrive && pinned) { const c = stage.querySelector('.dk-card'); if (c) c.classList.add('arrive'); }
@@ -341,7 +343,8 @@ function setOpen(on) {
   const stage = document.getElementById('sgStage');
   if (!stage) return;
   stage.classList.toggle('open-card', on);
-  const el = stage.querySelector('.dk-card');
+  // The card that opens is the one at the front, not the first card in the page.
+  const el = stage.querySelectorAll('.dk-card')[stage.dataset.pinned === '1' ? 0 : u.idx];
   if (el) el.classList.toggle('open', on);
   layoutCards(true);
 }
