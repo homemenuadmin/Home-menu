@@ -445,28 +445,36 @@ function sgApprove(mealId) {
   stage.classList.remove('open-card');
   const cards = [...stage.querySelectorAll('.dk-card')];
   const pin = cards.indexOf(card);
+  let maxDelay = 0;
   cards.forEach((c, i) => {
     if (c === card) return;
-    c.style.transition = 'transform .42s cubic-bezier(.5,0,.75,0), opacity .3s ease';
-    c.style.transitionDelay = (Math.abs(i - pin) * 60) + 'ms';
+    const delay = Math.abs(i - pin) * 40;
+    maxDelay = Math.max(maxDelay, delay);
+    c.style.transition = 'transform .32s cubic-bezier(.5,0,.75,0), opacity .24s ease';
+    c.style.transitionDelay = delay + 'ms';
     c.style.transform = 'translateX(120%) rotate(8deg)';
     c.style.opacity = '0';
   });
   const none = document.getElementById('sgNoneRow');
   if (none) none.classList.add('hide');
+  // Redraw as soon as the others have left, not after a fixed pause.
   setTimeout(() => {
     deck.arriveNext = true;
     redrawHome();
     deckBusy = false;
-  }, motion('--sg-approve-ms', 460));
+  }, motion('--sg-approve-ms', 320) + maxDelay);
 }
 
 // Change: the approved meal goes back among the ideas, and they slide back in.
+// The card you pressed Change on stays at the front, rather than going back to the first idea.
 function sgChange(mealId) {
   if (deckBusy) return;
   const m = lastPlan && lastPlan.meals.find((x) => x.id === mealId);
   const was = m ? m.status : 'approved';
   setLocalStatus(mealId, 'suggested');
+  const slot = m ? m.meal_slot : curSlot();
+  const k = slotState(lastPlan, slot).items.findIndex((x) => x.meal.id === mealId);
+  if (k >= 0) ui(slot).idx = k;
   deck.cardsInNext = true;
   redrawHome();
   saveMeal(mealId, { status: 'suggested' }, () => setLocalStatus(mealId, was));
