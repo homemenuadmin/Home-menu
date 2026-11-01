@@ -742,3 +742,11 @@ button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .dk-no
 
 /* Add a meal: a dashed row under the slot's meals */
 .cal-add { width:100%; min-height:44px; margin-top:6px; border:2px dashed #9CA3AF; border-radius:14px; background:transparent; color:var(--ink); font:inherit; font-size:16px; font-weight:700; cursor:pointer; }
+
+/* The meal window: a short scrolling list, with a fade at the bottom while there is more. */
+.cal-items-wrap { position:relative; }
+.cal-items { max-height:320px; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; }
+.cal-items::-webkit-scrollbar { display:none; }
+.cal-items-wrap::after { content:''; position:absolute; left:0; right:0; bottom:0; height:56px; pointer-events:none; opacity:0;
+  background:linear-gradient(to bottom, rgba(255,255,255,0), var(--card)); transition:opacity .25s ease; }
+.cal-items-wrap.more::after { opacity:1; }

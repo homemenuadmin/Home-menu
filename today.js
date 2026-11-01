@@ -168,7 +168,8 @@ function calBodyHtml() {
   const onDay = (cache.meals || []).filter((m) => m.meal_date === mealsDay && m.meal_slot === calSlot);
   let html = `<div class="cal-slot" data-slot="${calSlot}">`;
   if (!onDay.length && mealForm !== calSlot) html += `<p class="muted empty-note">${esc(t('noMealsSlot'))}</p>`;
-  html += '<ul class="cal-list">' + onDay.map(mealRowHtml).join('') + '</ul>';
+  // The meals scroll in a short window; a fade at the bottom shows there is more to see.
+  html += '<div class="cal-items-wrap"><div class="cal-items"><ul class="cal-list">' + onDay.map(mealRowHtml).join('') + '</ul></div></div>';
   if (mealForm === calSlot) html += mealFormHtml(null, calSlot);
   else if (canPlanDay(mealsDay)) html += `<button class="cal-add add-slot" onclick="openAddMeal('${calSlot}')">+ ${esc(t('addMeal'))}</button>`;
   else html += `<p class="muted">${esc(t(mealsDay < todayIso() ? 'calPastDay' : 'calFarDay'))}</p>`;
@@ -629,3 +630,14 @@ function calChangeMeal(id) {
   }, `<li data-meal="${id}">${mealFormHtml(meal)}</li>`);
   if (!opened) loadTab({ quiet: true });
 }
+
+// The fade at the bottom of the meal window shows only while there is more below.
+function calUpdateMore() {
+  document.querySelectorAll('.cal-items').forEach((el) => {
+    const wrap = el.parentElement;
+    const more = el.scrollHeight - el.clientHeight - el.scrollTop > 4;
+    wrap.classList.toggle('more', el.scrollHeight > el.clientHeight + 4 && more);
+  });
+}
+document.addEventListener('scroll', (e) => { if (e.target.classList && e.target.classList.contains('cal-items')) calUpdateMore(); }, true);
+new MutationObserver(() => calUpdateMore()).observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
