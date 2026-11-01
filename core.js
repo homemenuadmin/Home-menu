@@ -283,6 +283,8 @@ function render() {
     ${tourHtml()}`;
   restoreScroll(keepScroll);
   segPlay();
+  // The Meals calendar's highlight is placed on its day (no animation: the screen has just been drawn).
+  if (tab === 'today') calPlaceSel(false);
   // The meal times bar is decided again now the new screen is in place (the call above saw the old one).
   if (typeof drawMealTimes === 'function') drawMealTimes();
   // The family Home sets up its greeting and meals sheet once the screen is in place.
@@ -328,7 +330,7 @@ function roleToggleHtml() {
 let segSlideFrom = null;   // { key, index } of the option that was on before the tap
 // The Breakfast / Lunch / Dinner bar (#mtBar) works the same way, with its own options.
 function segKeyOf(seg) {
-  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : seg.id === 'mtBar' ? 'meal' : seg.classList.contains('tab-bar') ? 'nav' : '';
+  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : seg.id === 'mtBar' ? 'meal' : seg.classList.contains('cal-seg') ? 'cal' : seg.classList.contains('tab-bar') ? 'nav' : '';
 }
 function segItems(seg) {
   return seg.id === 'mtBar' ? seg.querySelectorAll('.mt-sub') : seg.querySelectorAll('button');
@@ -497,7 +499,7 @@ async function go(k) {
   // Only the tabs this view has, plus Settings.
   tab = (ROLE_TABS[activeRole()].includes(k) || k === 'profile') ? k : 'home';
   notice = ''; problem = '';
-  mealForm = false; mealEditId = null; itemForm = false; ruleForm = false; openRecipeId = null; plannerDay = null; plannerRecipeId = null;
+  mealForm = false; mealEditId = null; calOpen = true; itemForm = false; ruleForm = false; openRecipeId = null; plannerDay = null; plannerRecipeId = null;
   await loadTab();
 }
 

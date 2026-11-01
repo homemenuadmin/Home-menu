@@ -247,19 +247,55 @@
 /* Top bar: role switch and language button side by side. */
 .top-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
 
-/* Meals tab: the two-week calendar strip. */
-.daystrip { display:flex; gap:8px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none; }
-.daystrip::-webkit-scrollbar { display:none; }
-.daychip { flex:0 0 auto; width:60px; min-height:76px; display:flex; flex-direction:column; align-items:center;
-           justify-content:center; gap:2px; padding:6px; border-radius:18px; border:2px solid #9CA3AF; background:#fff;
-           color:var(--ink); font:inherit; cursor:pointer; }
-.daychip.on { background:var(--teal); border-color:var(--teal); color:#fff; }
-.dc-wd { font-size:15px; font-weight:600; }
-.dc-num { font-size:24px; font-weight:800; line-height:1; }
-.dc-dot { width:7px; height:7px; border-radius:50%; margin-top:2px; background:transparent; }
-.dc-dot.on { background:var(--coral); }
-.daychip.on .dc-dot.on { background:#fff; }
-.cal-title { margin:8px 0 4px; }
+/* Meals tab: the month calendar, with the chosen day's card folded in below it. */
+.cal-legend { display:flex; gap:14px; margin:8px 4px 10px; font-size:15px; color:var(--muted); font-weight:600; }
+.cal-legend span { display:inline-flex; align-items:center; gap:6px; }
+.cal { position:relative; z-index:2; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:12px 10px 10px; }
+.cal-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.cal-top strong { font-size:21px; font-weight:800; }
+.cal-nav { width:48px; min-height:48px; border:2px solid #9CA3AF; border-radius:14px; background:#fff; color:var(--ink); font:inherit; font-size:24px; line-height:1; cursor:pointer; padding:0; }
+.cal-week, .cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; }
+.cal-week div { text-align:center; font-size:13px; font-weight:700; color:var(--muted); padding:4px 0; text-transform:uppercase; letter-spacing:.03em; }
+.cal-grid { position:relative; }
+.cal-day { position:relative; aspect-ratio:1 / 1.08; border-radius:12px; border:1px solid transparent; background:#FBF9F6; color:var(--ink); font:inherit;
+           display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0; cursor:pointer; }
+.cal-day.out { opacity:.35; }
+.cal-day .n { font-size:17px; font-weight:700; line-height:1; display:flex; align-items:center; justify-content:center; width:26px; height:26px; }
+/* Today: the number sits in a solid teal disc. */
+.cal-day.today .n { background:var(--teal); color:#fff; border-radius:50%; }
+.cal-marks { display:flex; gap:3px; min-height:6px; }
+.cal-dot { display:block; width:7px; height:7px; border-radius:50%; }
+.cal-marks .cal-dot { width:6px; height:6px; }
+.cal-dot-breakfast { background:#7A4E00; }
+.cal-dot-lunch { background:var(--teal); }
+.cal-dot-dinner { background:#6D28D9; }
+.cal-dot.sug { opacity:.35; }
+/* The chosen day's outline: one element that fades out, moves, and fades in. */
+.cal-sel { position:absolute; z-index:3; pointer-events:none; border-radius:12px; box-shadow:inset 0 0 0 2px var(--teal); opacity:0; transition:opacity .24s ease; }
+.cal-sel.on { opacity:1; }
+
+/* The card: it sits under the calendar and drops down from behind its lower edge. */
+.cal-drawer { position:relative; z-index:1; margin-top:12px; }
+.cal-drawer > .cal-sheet { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:14px 14px 16px; }
+.cal-drawer.enter > .cal-sheet { animation:calUnder var(--pick-open) var(--pick-out) both; }
+.cal-drawer.closing > .cal-sheet { transform:translateY(-48px); opacity:0; transition:transform .55s cubic-bezier(.45,0,.2,1), opacity .3s ease .25s; }
+@keyframes calUnder { from { transform:translateY(-48px); opacity:0; } to { transform:none; opacity:1; } }
+.cal-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.cal-head h2 { margin:0; font-size:20px; }
+.cal-head small { display:block; font-size:15px; color:var(--muted); font-weight:600; margin-top:2px; }
+.cal-close { width:48px; min-height:48px; font-size:20px; }
+.cal-seg { display:flex; width:100%; margin-bottom:12px; }
+.cal-seg button { flex:1; min-height:48px; font-size:17px; padding:8px 4px; }
+.cal-slot .clean { margin:0; }
+/* The card's contents slide in from the side the new day is on. */
+.cal-swap-r { animation:calInR .26s cubic-bezier(.25,.8,.25,1) both; }
+.cal-swap-l { animation:calInL .26s cubic-bezier(.25,.8,.25,1) both; }
+@keyframes calInR { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:none; } }
+@keyframes calInL { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cal-swap-r, .cal-swap-l, .cal-drawer.enter > .cal-sheet { animation:none; }
+  .cal-sel, .cal-drawer.closing > .cal-sheet { transition-duration:1ms !important; }
+}
 .meal-form, .item-form { border:2px solid var(--line); border-radius:16px; padding:12px; margin:12px 0; background:#fff; }
 
 /* Meal planner tab: the week grid. */

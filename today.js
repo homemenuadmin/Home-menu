@@ -1,4 +1,4 @@
-// Meals tab (the Meal picker): a two-week calendar. Pick a day to see its meals, then add or edit them.
+// Meals tab (the Meal picker): a month calendar. Pick a day to see its meals in a card below, then add or edit them.
 // A new meal is picked from a scrollable list of recipes: tap one to see its details, then add it.
 // Part of Home Menu. Loaded by index.html. Load order matters: see index.html.
 
@@ -45,24 +45,48 @@ function mealRowHtml(m) {
     : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
     : `<span class="tag warn">${esc(t('suggested'))}</span>`;
   let actions = '';
-  if (m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
+  const editable = canPlanDay(m.meal_date);
+  if (editable && m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
   if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
-  if (m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
-  if (can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
+  if (editable && m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
+  if (editable && can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
   return `<li data-meal="${m.id}"><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+}
+
+// The Meals tab's calendar state: whether the day's card is open, and the meal slot it shows.
+let calOpen = true;
+let calSlot = 'breakfast';
+let calTimer = null;          // the highlight's move, once it has faded out
+const CAL_PICK_MS = 240;      // the highlight fades out before it moves; the card waits for the same time
+
+// Meals can be planned on today and the next two weeks. Other days are shown, but not changed.
+function canPlanDay(iso) {
+  const today = todayIso();
+  return iso >= today && iso <= isoAddDays(today, CAL_DAYS - 1);
+}
+function monthStartOf(iso) { return iso.slice(0, 7) + '-01'; }
+function monthEndOf(iso) {
+  const d = isoToDate(monthStartOf(iso));
+  return dateToIso(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 
 async function screenToday() {
   const today = todayIso();
-  const last = isoAddDays(today, CAL_DAYS - 1);
-  if (!mealsDay || mealsDay < today || mealsDay > last) mealsDay = today;
+  if (!mealsDay) mealsDay = today;
+  // The month on show, plus the days either side that fill its first and last weeks.
+  const monthFirst = monthStartOf(mealsDay);
+  const monthLast = monthEndOf(mealsDay);
+  const dow0 = isoToDate(monthFirst).getDay();
+  const cells = Math.ceil((dow0 + isoToDate(monthLast).getDate()) / 7) * 7;
+  const gridStart = isoAddDays(monthFirst, -dow0);
+  const gridEnd = isoAddDays(gridStart, cells - 1);
 
   const [meals, recipes, ings, pantry, rules] = await Promise.all([
     sb.from('meals')
-      .select('id, meal_date, meal_slot, servings, status, recipe_id, recipes(title_en, title_ar)')
+      .select(MEAL_SELECT)
       .eq('household_id', hh.id)
-      .gte('meal_date', today)
-      .lte('meal_date', last),
+      .gte('meal_date', gridStart)
+      .lte('meal_date', gridEnd),
     sb.from('recipes').select('id, household_id, created_by, copied_from, title_en, title_ar, minutes, meal_slot, source').order('title_en'),
     sb.from('recipe_ingredients').select('id, recipe_id, ingredient_key, name_en, name_ar, quantity, optional'),
     sb.from('pantry_items').select('ingredient_key, level').eq('household_id', hh.id),
@@ -72,38 +96,165 @@ async function screenToday() {
   cache.meals = meals.data || [];
   cache.recipes = recipes.data || [];
   cache.pickerRecipes = buildPickerRecipes(recipes.data || [], ings.data || [], pantry.data || [], rules.data || []);
-  const onDay = cache.meals.filter((m) => m.meal_date === mealsDay);
 
-  // The calendar strip: two weeks from today, with a dot on days that have meals.
-  const strip = Array.from({ length: CAL_DAYS }, (_, i) => {
-    const iso = isoAddDays(today, i);
-    const dt = isoToDate(iso);
-    const has = cache.meals.some((m) => m.meal_date === iso);
-    return `<button class="daychip ${iso === mealsDay ? 'on' : ''}" onclick="selectDay('${iso}')" aria-label="${esc(niceDay(iso, { weekday: 'long', day: 'numeric', month: 'long' }))}">
-      <span class="dc-wd">${esc(dt.toLocaleDateString(t('dateLocale'), { weekday: 'short' }))}</span>
-      <span class="dc-num">${dt.getDate()}</span>
-      <span class="dc-dot ${has ? 'on' : ''}"></span>
-    </button>`;
-  }).join('');
-
-  let html = `<div class="daystrip">${strip}</div>
-    <h2 class="cal-title">${esc(niceDay(mealsDay, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>`;
-
-  for (const slot of SLOTS) {
-    const list = onDay.filter((m) => m.meal_slot === slot);
-    html += `<div class="card" data-slot="${slot}"><h3 style="margin-top:0">${esc(t(slot))}</h3>`;
-    if (!list.length && mealForm !== slot) html += `<p class="muted empty-note">${esc(t('noMealsSlot'))}</p>`;
-    html += '<ul class="clean">';
-    for (const m of list) {
-      if (mealEditId === m.id) { html += `<li data-meal="${m.id}">${mealFormHtml(m)}</li>`; continue; }
-      html += mealRowHtml(m);
-    }
-    html += '</ul>';
-    if (mealForm === slot) html += mealFormHtml(null, slot);
-    else html += `<button class="btn small add-slot" onclick="openAddMeal('${slot}')">${esc(t('addMeal'))}</button>`;
-    html += '</div>';
+  const weekdays = Array.from({ length: 7 }, (_, i) =>
+    `<div>${esc(niceDay(isoAddDays(gridStart, i), { weekday: 'short' }))}</div>`).join('');
+  let days = '';
+  for (let i = 0; i < cells; i++) {
+    const iso = isoAddDays(gridStart, i);
+    const dayMeals = cache.meals.filter((m) => m.meal_date === iso);
+    // One dot per slot with a meal; a dot is faded while the meal is only suggested.
+    const dots = SLOTS.filter((s) => dayMeals.some((m) => m.meal_slot === s)).map((s) => {
+      const approved = dayMeals.some((m) => m.meal_slot === s && m.status !== 'suggested');
+      return `<i class="cal-dot cal-dot-${s}${approved ? '' : ' sug'}"></i>`;
+    }).join('');
+    const out = iso < monthFirst || iso > monthLast;
+    days += `<button class="cal-day${out ? ' out' : ''}${iso === today ? ' today' : ''}" data-cal="${iso}" onclick="calPick('${iso}')" aria-label="${esc(niceDay(iso, { weekday: 'long', day: 'numeric', month: 'long' }))}">
+      <span class="n">${isoToDate(iso).getDate()}</span><span class="cal-marks">${dots}</span></button>`;
   }
+
+  let html = `<div class="cal-legend">${SLOTS.map((s) => `<span><i class="cal-dot cal-dot-${s}"></i>${esc(t(s))}</span>`).join('')}</div>
+    <div class="cal">
+      <div class="cal-top">
+        <button class="cal-nav" onclick="calMove(-1)" aria-label="${esc(t('prevMonth'))}">&#8249;</button>
+        <strong>${esc(niceDay(monthFirst, { month: 'long', year: 'numeric' }))}</strong>
+        <button class="cal-nav" onclick="calMove(1)" aria-label="${esc(t('nextMonth'))}">&#8250;</button>
+      </div>
+      <div class="cal-week">${weekdays}</div>
+      <div class="cal-grid" id="calGrid"><span class="cal-sel" id="calSel" aria-hidden="true"></span>${days}</div>
+    </div>`;
+  if (calOpen) html += calDrawerHtml(true);
   return html;
+}
+
+// The title and count of the day's card.
+function calTitleText() { return niceDay(mealsDay, { weekday: 'long', day: 'numeric', month: 'long' }); }
+function calCountText() {
+  const dayMeals = (cache.meals || []).filter((m) => m.meal_date === mealsDay);
+  const planned = SLOTS.filter((s) => dayMeals.some((m) => m.meal_slot === s)).length;
+  const approved = SLOTS.filter((s) => dayMeals.some((m) => m.meal_slot === s && m.status !== 'suggested')).length;
+  return `${approved} ${t('calApprovedOf')} · ${planned} ${t('calPlanned')}`;
+}
+
+// The card under the calendar: the day, its count, the slot switch, and the chosen slot's meals.
+function calDrawerHtml(withEnter) {
+  return `<div class="fold cal-drawer${withEnter ? foldEnter('cal-sheet') : ''}" data-fold="cal-sheet"><div class="cal-sheet">
+    <div class="cal-head"><div><h2 id="calTitle">${esc(calTitleText())}</h2><small id="calCount">${esc(calCountText())}</small></div>
+      <button class="icon-btn cal-close" onclick="calClose()" aria-label="${esc(t('close'))}">&#10005;</button></div>
+    <div class="seg cal-seg"><span class="seg-ind" aria-hidden="true"></span>${SLOTS.map((s) =>
+      `<button class="${s === calSlot ? 'on' : ''}" onclick="calSlotTap(this, '${s}')">${esc(t(s))}</button>`).join('')}</div>
+    <div id="calBody">${calBodyHtml()}</div>
+  </div></div>`;
+}
+
+// The chosen slot on the chosen day: its meals, then the add button, or why the day cannot be changed.
+function calBodyHtml() {
+  const onDay = (cache.meals || []).filter((m) => m.meal_date === mealsDay && m.meal_slot === calSlot);
+  let html = `<div class="cal-slot" data-slot="${calSlot}">`;
+  if (!onDay.length && mealForm !== calSlot) html += `<p class="muted empty-note">${esc(t('noMealsSlot'))}</p>`;
+  html += '<ul class="clean">';
+  for (const m of onDay) {
+    if (mealEditId === m.id) html += `<li data-meal="${m.id}">${mealFormHtml(m)}</li>`;
+    else html += mealRowHtml(m);
+  }
+  html += '</ul>';
+  if (mealForm === calSlot) html += mealFormHtml(null, calSlot);
+  else if (canPlanDay(mealsDay)) html += `<button class="btn small add-slot" onclick="openAddMeal('${calSlot}')">${esc(t('addMeal'))}</button>`;
+  else html += `<p class="muted">${esc(t(mealsDay < todayIso() ? 'calPastDay' : 'calFarDay'))}</p>`;
+  return html + '</div>';
+}
+
+// Moves the highlight to the chosen day. With animate, it fades out first and then moves and fades in.
+function calPlaceSel(animate) {
+  const ring = document.getElementById('calSel');
+  const grid = document.getElementById('calGrid');
+  if (!ring || !grid) return;
+  const cell = calOpen && mealsDay && grid.querySelector(`[data-cal="${mealsDay}"]`);
+  clearTimeout(calTimer);
+  if (!cell) { ring.classList.remove('on'); return; }
+  const move = () => {
+    ring.style.transition = 'none';
+    ring.style.left = cell.offsetLeft + 'px';
+    ring.style.top = cell.offsetTop + 'px';
+    ring.style.width = cell.offsetWidth + 'px';
+    ring.style.height = cell.offsetHeight + 'px';
+    void ring.offsetWidth;
+    ring.style.transition = '';
+    ring.classList.add('on');
+  };
+  if (animate && ring.classList.contains('on')) {
+    ring.classList.remove('on');
+    calTimer = setTimeout(move, CAL_PICK_MS);
+  } else move();
+}
+
+// Plays the slide on an element: dir 'r' for a later day (from the right), 'l' for an earlier one.
+function calSwap(el, dir) {
+  el.classList.remove('cal-swap-r', 'cal-swap-l');
+  void el.offsetWidth;
+  el.classList.add(dir === 'r' ? 'cal-swap-r' : 'cal-swap-l');
+}
+
+// Redraws the card's text for the chosen day, with the slide from the side the new day is on.
+function calFill(dir) {
+  const title = document.getElementById('calTitle');
+  const body = document.getElementById('calBody');
+  if (!title || !body) return;
+  title.textContent = calTitleText();
+  document.getElementById('calCount').textContent = calCountText();
+  body.innerHTML = calBodyHtml();
+  if (dir) { calSwap(title.closest('.cal-head'), dir); calSwap(body, dir); }
+  syncScreenHtml();
+}
+
+// Tapping a day opens its card, or moves the card to that day. Tapping the open day again closes the card.
+function calPick(iso) {
+  if (calOpen && iso === mealsDay) return calClose();
+  const prev = mealsDay;
+  mealsDay = iso; mealForm = false; mealEditId = null; calOpen = true;
+  // A day in another month, or a calendar not on screen yet, is drawn by a quiet reload.
+  if (!document.querySelector(`#calGrid [data-cal="${iso}"]`)) return loadTab({ quiet: true });
+  const drawer = document.querySelector('[data-fold="cal-sheet"]');
+  if (!drawer || drawer.classList.contains('closing')) {
+    // The card was closed: it drops out from under the calendar, and the highlight fades in on the day.
+    if (drawer) drawer.remove();
+    document.querySelector('.cal').insertAdjacentHTML('afterend', calDrawerHtml(true));
+    calPlaceSel(true);
+    return syncScreenHtml();
+  }
+  // The highlight fades out and moves; the card waits for the same time, then slides in with the new day.
+  const dir = iso > prev ? 'r' : 'l';
+  calPlaceSel(true);
+  setTimeout(() => calFill(dir), CAL_PICK_MS);
+}
+
+// Closes the card: the highlight fades away, and the card folds back under the calendar.
+function calClose() {
+  calOpen = false; mealForm = false; mealEditId = null;
+  calPlaceSel(false);
+  const drawer = document.querySelector('[data-fold="cal-sheet"]');
+  if (!drawer || drawer.classList.contains('closing')) return syncScreenHtml();
+  foldClose('cal-sheet', () => { drawer.remove(); syncScreenHtml(); });
+}
+
+// Shows another slot in the card. The pill slides to it; the card's meals change under it.
+function calSlotTap(btn, slot) {
+  if (calSlot === slot) return;
+  segTap(btn);
+  calSlot = slot; mealForm = false; mealEditId = null;
+  const seg = btn.parentElement;
+  seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+  segPlay(seg);
+  document.getElementById('calBody').innerHTML = calBodyHtml();
+  syncScreenHtml();
+}
+
+// Moves the calendar a month. The card closes, as the days it showed are no longer on screen.
+function calMove(d) {
+  const f = isoToDate(monthStartOf(mealsDay));
+  mealsDay = dateToIso(new Date(f.getFullYear(), f.getMonth() + d, 1));
+  calOpen = false; mealForm = false; mealEditId = null;
+  loadTab({ quiet: true });
 }
 
 // Recipes for the picker: with how many required ingredients are missing from the kitchen.
@@ -241,7 +392,6 @@ function pickServings(d) {
 function filterPicker(v) { pickerState.filter = v; rerenderPicker(); }
 function chooseRecipe(id) { pickerState.recipeId = id; saveMeal(); }
 
-function selectDay(iso) { mealsDay = iso; mealForm = false; mealEditId = null; loadTab(); }
 // Opening a form puts it in place at once, from the data on screen. The slot's "Add a meal" button is replaced by the
 // form, and its empty note is hidden while the form is open. If that isn't possible, the tab redraws quietly.
 function openAddMeal(slot) {
