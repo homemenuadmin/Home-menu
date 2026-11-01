@@ -275,7 +275,7 @@
 .cal-sel.on { opacity:1; }
 
 /* The card: it sits under the calendar and drops down from behind its lower edge. */
-.cal-drawer { position:relative; z-index:4; margin-top:12px; }
+.cal-drawer { position:relative; z-index:4; margin-top:12px; min-height:0; }
 .cal-drawer > .cal-sheet { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:14px 14px 16px; }
 .cal-drawer.enter > .cal-sheet { animation:calUnder var(--pick-open) var(--pick-out) both; }
 .cal-drawer.closing > .cal-sheet { transform:translateY(-48px); opacity:0; transition:transform .55s cubic-bezier(.45,0,.2,1), opacity .3s ease .25s; }
