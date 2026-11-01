@@ -381,8 +381,9 @@ function drawMealTimes() {
   const on = tab === 'home' && !!lastPlan && !!document.getElementById('sgStage');
   // Off the Family Home (Cook, other tabs, no plan yet) the bar hides, whatever else is true.
   if (!on) { bar.classList.remove('show'); return; }
-  bar.innerHTML = SLOTS.map((s, i) => `<button class="mt-sub${i === deck.cur ? ' on' : ''}${slotState(lastPlan, s).approved ? ' done' : ''}" data-dk-slot="${i}" role="tab" aria-selected="${i === deck.cur}">${esc(t(s))}</button>`).join('');
+  bar.innerHTML = '<span class="seg-ind" aria-hidden="true"></span>' + SLOTS.map((s, i) => `<button class="mt-sub${i === deck.cur ? ' on' : ''}${slotState(lastPlan, s).approved ? ' done' : ''}" data-dk-slot="${i}" role="tab" aria-selected="${i === deck.cur}">${esc(t(s))}</button>`).join('');
   placeMealTimes(bar);
+  segPlay(bar);
   if (on && !bar.classList.contains('show')) {
     requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.add('show')));
   } else if (!on) {
@@ -632,7 +633,7 @@ function deckAct(btn) {
 document.addEventListener('click', (e) => {
   if (suppressClick) { suppressClick = false; if (e.target.closest('#sgStage')) return; }
   const mt = e.target.closest('#mtBar [data-dk-slot]');
-  if (mt) return pickSlot(Number(mt.dataset.dkSlot));
+  if (mt) { segTap(mt); return pickSlot(Number(mt.dataset.dkSlot)); }
   const act = e.target.closest('[data-dk-act]');
   if (act) return deckAct(act);
   const use = e.target.closest('[data-dk-use]');

@@ -323,25 +323,33 @@ function roleToggleHtml() {
 // A tap records where the pill was; the pill is drawn after the new screen is in place (segPlay),
 // so it stretches from the old option to the new one and settles on it.
 let segSlideFrom = null;   // { key, index } of the option that was on before the tap
+// The Breakfast / Lunch / Dinner bar (#mtBar) works the same way, with its own options.
 function segKeyOf(seg) {
-  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : '';
+  return seg.classList.contains('role-seg') ? 'role' : seg.classList.contains('lang-seg') ? 'lang' : seg.id === 'mtBar' ? 'meal' : '';
+}
+function segItems(seg) {
+  return seg.id === 'mtBar' ? seg.querySelectorAll('.mt-sub') : seg.querySelectorAll('button');
 }
 function segTap(btn) {
   const seg = btn.parentElement;
-  const on = seg.querySelector('button.on');
+  const on = seg.querySelector('.on');
   if (!on || on === btn) return;
-  segSlideFrom = { key: segKeyOf(seg), index: [...seg.querySelectorAll('button')].indexOf(on) };
+  segSlideFrom = { key: segKeyOf(seg), index: [...segItems(seg)].indexOf(on) };
 }
-function segPlay() {
-  document.querySelectorAll('.seg').forEach((seg) => {
+// Places each toggle's pill (all of them, or just `only`), and slides it over if a tap has just moved it.
+function segPlay(only) {
+  const list = only ? [only] : [...document.querySelectorAll('.seg')];
+  list.forEach((seg) => {
     const ind = seg.querySelector('.seg-ind');
-    const btns = seg.querySelectorAll('button');
-    const to = seg.querySelector('button.on');
+    const to = seg.querySelector('.on');
     if (!ind || !to) return;
+    const items = segItems(seg);
     const b = { x: to.offsetLeft, w: to.offsetWidth };
     ind.style.left = b.x + 'px';
     ind.style.width = b.w + 'px';
-    const from = segSlideFrom && segSlideFrom.key === segKeyOf(seg) ? btns[segSlideFrom.index] : null;
+    const mine = !!segSlideFrom && segSlideFrom.key === segKeyOf(seg);
+    const from = mine ? items[segSlideFrom.index] : null;
+    if (mine) segSlideFrom = null;
     const ms = motion('--seg-ms', 460);
     if (from && from !== to && ms && ind.animate) {
       const a = { x: from.offsetLeft, w: from.offsetWidth };
@@ -354,7 +362,6 @@ function segPlay() {
       ], { duration: ms, easing: 'cubic-bezier(.4,0,.2,1)' });
     }
   });
-  segSlideFrom = null;
 }
 
 // ---------------------------------------------------------------

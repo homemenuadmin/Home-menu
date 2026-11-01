@@ -595,6 +595,10 @@ li.leaving { opacity: 0; transition: opacity .2s ease; }
   height: 30px; cursor: pointer; flex: 0 0 auto; touch-action: manipulation; white-space: nowrap; opacity: 0;
   transition: opacity .15s ease, background .3s ease, color .2s ease; }
 #mtBar.show .mt-sub { opacity: 1; transition: opacity .25s ease .3s, background .3s ease, color .2s ease; }
+/* The white pill for the chosen meal is one element that slides between the meals (positioned by segPlay). */
+#mtBar .seg-ind { position: absolute; top: 5px; bottom: 5px; left: 0; width: 0; border-radius: 999px; background: #fff; pointer-events: none; }
+#mtBar .mt-sub.on { background: transparent; color: #1F2937; }
+#mtBar .mt-sub { z-index: 1; }
 .mt-sub.on { background: #fff; color: #1F2937; }
 .mt-sub.done::after { content: ''; position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #2DD4BF; }
 .mt-sub.on.done::after { background: var(--teal, #0F766E); }
