@@ -37,20 +37,33 @@ function niceDay(iso, opts) {
 }
 
 // The columns a saved meal is read back with, so it can be shown at once.
-const MEAL_SELECT = 'id, meal_date, meal_slot, servings, status, recipe_id, recipes(title_en, title_ar)';
+const MEAL_SELECT = 'id, meal_date, meal_slot, servings, status, recipe_id, ingredient_changes, recipes(title_en, title_ar, minutes)';
+const SLOT_COLORS = { breakfast: ['#FFF1C2', '#7A4E00'], lunch: ['#E0F7F2', '#0F766E'], dinner: ['#EFE7FD', '#6D28D9'] };
+const CAL_EXPAND = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+const CAL_SHRINK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
+// The card's state: expanded over the calendar, and the meal whose edit panel is open with its working copy.
+let calExpanded = false;
+let calDraft = null;   // { id, servings, ings: [{ name, qty, have }], row: index | 'new' | null }
 // One meal's row in its slot's list.
 function mealRowHtml(m) {
   const title = m.recipes ? nameOf(m.recipes.title_en, m.recipes.title_ar) : '';
-  const statusTag = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
+  const editable = canPlanDay(m.meal_date);
+  const [bg, ink] = SLOT_COLORS[m.meal_slot] || SLOT_COLORS.breakfast;
+  const chip = m.status === 'cooked' ? `<span class="tag">${esc(t('cookedDone'))}</span>`
     : m.status === 'approved' ? `<span class="tag gold">${esc(t('approved'))}</span>`
     : `<span class="tag warn">${esc(t('suggested'))}</span>`;
-  let actions = '';
-  const editable = canPlanDay(m.meal_date);
-  if (editable && m.status === 'suggested' && can.approve()) actions += `<button class="btn small" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button> `;
-  if (m.status !== 'cooked' && can.cook()) actions += `<button class="btn small secondary" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button> `;
-  if (editable && m.status !== 'cooked' && can.suggest()) actions += `<button class="btn small secondary" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button> `;
-  if (editable && can.deleteMeal()) actions += `<button class="btn small danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
-  return `<li data-meal="${m.id}"><div class="row"><strong>${esc(title)} · ${m.servings}</strong>${statusTag}</div><div>${actions}</div></li>`;
+  let acts = '';
+  if (editable && m.status === 'suggested' && can.approve()) acts += `<button class="cal-mini ok" onclick="setMealStatus('${m.id}','approved')">${esc(t('approve'))}</button>`;
+  if (editable && m.status !== 'cooked' && can.suggest()) acts += `<button class="cal-mini" onclick="editMeal('${m.id}')">${esc(t('editMeal'))}</button>`;
+  if (m.status !== 'cooked' && can.cook()) acts += `<button class="cal-mini" onclick="setMealStatus('${m.id}','cooked')">${esc(t('markCooked'))}</button>`;
+  if (editable && can.deleteMeal()) acts += `<button class="cal-mini danger" onclick="removeMeal('${m.id}')">${esc(t('deleteMeal'))}</button>`;
+  const open = mealEditId === m.id && calDraft && calDraft.id === m.id;
+  const mins = m.recipes && m.recipes.minutes ? `${m.recipes.minutes} ${esc(t('calMinutes'))} · ` : '';
+  return `<li data-meal="${m.id}"><div class="cal-item-row">
+      <span class="cal-thumb" style="background:${bg};color:${ink}" aria-hidden="true">${esc((title || '?').trim().charAt(0).toUpperCase())}</span>
+      <div class="cal-txt"><strong>${esc(title)}</strong><small>${mins}${m.servings} ${esc(t('calServings'))}</small>
+        <div class="cal-acts${open ? ' quiet' : ''}">${acts}</div></div>${chip}
+    </div>${open ? calEditPanelHtml(m, false) : ''}</li>`;
 }
 
 // The Meals tab's calendar state: whether the day's card is open, and the meal slot it shows.
@@ -96,6 +109,8 @@ async function screenToday() {
   cache.meals = meals.data || [];
   cache.recipes = recipes.data || [];
   cache.pickerRecipes = buildPickerRecipes(recipes.data || [], ings.data || [], pantry.data || [], rules.data || []);
+  cache.ingsByRecipe = {};
+  for (const i of ings.data || []) (cache.ingsByRecipe[i.recipe_id] = cache.ingsByRecipe[i.recipe_id] || []).push(i);
 
   const weekdays = Array.from({ length: 7 }, (_, i) =>
     `<div>${esc(niceDay(isoAddDays(gridStart, i), { weekday: 'short' }))}</div>`).join('');
@@ -114,7 +129,7 @@ async function screenToday() {
   }
 
   let html = `<div class="cal-legend">${SLOTS.map((s) => `<span><i class="cal-dot cal-dot-${s}"></i>${esc(t(s))}</span>`).join('')}</div>
-    <div class="cal">
+    <div class="cal-stage"><div class="cal" id="calCal">
       <div class="cal-top">
         <button class="cal-nav" onclick="calMove(-1)" aria-label="${esc(t('prevMonth'))}">&#8249;</button>
         <strong>${esc(niceDay(monthFirst, { month: 'long', year: 'numeric' }))}</strong>
@@ -124,7 +139,7 @@ async function screenToday() {
       <div class="cal-grid" id="calGrid"><span class="cal-sel" id="calSel" aria-hidden="true"></span>${days}</div>
     </div>`;
   if (calOpen) html += calDrawerHtml(true);
-  return html;
+  return html + '</div>';
 }
 
 // The title and count of the day's card.
@@ -138,9 +153,10 @@ function calCountText() {
 
 // The card under the calendar: the day, its count, the slot switch, and the chosen slot's meals.
 function calDrawerHtml(withEnter) {
-  return `<div class="fold cal-drawer${withEnter ? foldEnter('cal-sheet') : ''}" data-fold="cal-sheet"><div class="cal-sheet">
+  const cls = `${withEnter ? foldEnter('cal-sheet') : ''}${calExpanded ? ' expanded' : ''}${mealForm ? ' form-open' : ''}`;
+  return `<div class="fold cal-drawer${cls}" data-fold="cal-sheet" id="calDrawer"><div class="cal-sheet">
     <div class="cal-head"><div><h2 id="calTitle">${esc(calTitleText())}</h2><small id="calCount">${esc(calCountText())}</small></div>
-      <button class="icon-btn cal-close" onclick="calClose()" aria-label="${esc(t('close'))}">&#10005;</button></div>
+      <button class="icon-btn cal-close" id="calExpandBtn" onclick="calToggleExpand()" aria-label="${esc(t(calExpanded ? 'calShrink' : 'calExpand'))}">${calExpanded ? CAL_SHRINK : CAL_EXPAND}</button></div>
     <div class="seg cal-seg"><span class="seg-ind" aria-hidden="true"></span>${SLOTS.map((s) =>
       `<button class="${s === calSlot ? 'on' : ''}" onclick="calSlotTap(this, '${s}')">${esc(t(s))}</button>`).join('')}</div>
     <div id="calBody">${calBodyHtml()}</div>
@@ -152,20 +168,17 @@ function calBodyHtml() {
   const onDay = (cache.meals || []).filter((m) => m.meal_date === mealsDay && m.meal_slot === calSlot);
   let html = `<div class="cal-slot" data-slot="${calSlot}">`;
   if (!onDay.length && mealForm !== calSlot) html += `<p class="muted empty-note">${esc(t('noMealsSlot'))}</p>`;
-  html += '<ul class="clean">';
-  for (const m of onDay) {
-    if (mealEditId === m.id) html += `<li data-meal="${m.id}">${mealFormHtml(m)}</li>`;
-    else html += mealRowHtml(m);
-  }
-  html += '</ul>';
+  html += '<ul class="cal-list">' + onDay.map(mealRowHtml).join('') + '</ul>';
   if (mealForm === calSlot) html += mealFormHtml(null, calSlot);
-  else if (canPlanDay(mealsDay)) html += `<button class="btn small add-slot" onclick="openAddMeal('${calSlot}')">${esc(t('addMeal'))}</button>`;
+  else if (canPlanDay(mealsDay)) html += `<button class="cal-add add-slot" onclick="openAddMeal('${calSlot}')">+ ${esc(t('addMeal'))}</button>`;
   else html += `<p class="muted">${esc(t(mealsDay < todayIso() ? 'calPastDay' : 'calFarDay'))}</p>`;
   return html + '</div>';
 }
 
 // Moves the highlight to the chosen day. With animate, it fades out first and then moves and fades in.
 function calPlaceSel(animate) {
+  const cal = document.getElementById('calCal');
+  if (cal) cal.parentElement.style.setProperty('--cal-h', cal.offsetHeight + 'px');
   const ring = document.getElementById('calSel');
   const grid = document.getElementById('calGrid');
   if (!ring || !grid) return;
@@ -230,7 +243,7 @@ function calPick(iso) {
 
 // Closes the card: the highlight fades away, and the card folds back under the calendar.
 function calClose() {
-  calOpen = false; mealForm = false; mealEditId = null;
+  calOpen = false; calExpanded = false; mealForm = false; mealEditId = null; closeEditNow();
   calPlaceSel(false);
   const drawer = document.querySelector('[data-fold="cal-sheet"]');
   if (!drawer || drawer.classList.contains('closing')) return syncScreenHtml();
@@ -396,6 +409,11 @@ function chooseRecipe(id) { pickerState.recipeId = id; saveMeal(); }
 // form, and its empty note is hidden while the form is open. If that isn't possible, the tab redraws quietly.
 function openAddMeal(slot) {
   startPicker(null); mealForm = slot; mealEditId = null;
+  // The card grows over the calendar, and the meal menu comes up as it does.
+  closeEditNow();
+  calSetExpanded(true);
+  const drawer = document.getElementById('calDrawer');
+  if (drawer) drawer.classList.add('form-open');
   const opened = openFormNow('meal-' + slot, () => {
     const card = document.querySelector(`[data-slot="${slot}"]`);
     const btn = card && card.querySelector('.add-slot');
@@ -406,14 +424,23 @@ function openAddMeal(slot) {
 }
 function editMeal(id) {
   const meal = (cache.meals || []).find((m) => m.id === id);
-  if (!meal) { mealEditId = id; mealForm = false; return loadTab({ quiet: true }); }
-  startPicker(meal);
+  if (!meal) return loadTab({ quiet: true });
+  closeEditNow();
+  // The working copy: the meal's own ingredients if they were changed, otherwise the recipe's.
+  calDraft = {
+    id, servings: meal.servings, row: null,
+    ings: (meal.ingredient_changes || recipeIngsFor(meal)).map((g) => ({ ...g })),
+  };
   mealEditId = id; mealForm = false;
-  const opened = openFormNow('meal-edit-' + id, () => {
-    const li = document.querySelector(`li[data-meal="${id}"]`);
-    return li ? { els: [li] } : null;
-  }, `<li data-meal="${id}">${mealFormHtml(meal)}</li>`);
-  if (!opened) loadTab({ quiet: true });
+  const li = document.querySelector(`li[data-meal="${id}"]`);
+  if (!li) return loadTab({ quiet: true });
+  li.querySelector('.cal-acts').classList.add('quiet');   // hidden, but keeping its place, so the row does not change size
+  li.insertAdjacentHTML('beforeend', calEditPanelHtml(meal, true));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const w = li.querySelector('.cal-exp-wrap');
+    if (w) w.classList.remove('shut');
+  }));
+  syncScreenHtml();
 }
 // The key of the meal form that is open: 'meal-<slot>' for a new meal, 'meal-edit-<id>' for an edit, or ''.
 function mealFormKey() {
@@ -424,6 +451,10 @@ function mealFormKey() {
 function cancelMeal() {
   const key = mealFormKey();
   if (!key) { mealForm = false; mealEditId = null; return loadTab({ quiet: true }); }
+  // The card shrinks back as the menu folds away.
+  calSetExpanded(false);
+  const drawer = document.getElementById('calDrawer');
+  if (drawer) drawer.classList.remove('form-open');
   closeFormNow(key, () => { mealForm = false; mealEditId = null; });
 }
 
@@ -437,6 +468,7 @@ async function saveMeal() {
   // A new meal takes the slot of the card it was opened from; an edited meal keeps its slot.
   const slot = mealEditId ? (cache.meals.find((m) => m.id === mealEditId) || {}).meal_slot : mealForm;
   const fields = {
+    ingredient_changes: null,   // a new recipe or day starts from the recipe's own ingredients
     meal_date: date,
     meal_slot: slot,
     recipe_id: pickerState.recipeId,
@@ -455,11 +487,11 @@ async function saveMeal() {
   // The saved meal shows at once: an edited meal takes the place of its row, a new one joins its slot's list.
   // The form then folds closed, and the tab reloads quietly to confirm what was saved.
   const key = mealFormKey();
-  const reset = () => { mealForm = false; mealEditId = null; notice = t('ok'); problem = ''; };
+  const reset = () => { mealForm = false; mealEditId = null; calSetExpanded(false); notice = t('ok'); problem = ''; };
   const after = () => loadTab({ quiet: true });
   if (mealEditId) return closeFormNow(key, reset, after, mealRowHtml(res.data));
   const card = document.querySelector(`[data-slot="${slot}"]`);
-  const list = card && card.querySelector(':scope > ul.clean');
+  const list = card && card.querySelector(':scope > ul.cal-list');
   if (list) {
     list.insertAdjacentHTML('beforeend', mealRowHtml(res.data));
     const note = card.querySelector('.empty-note');
@@ -479,4 +511,121 @@ async function removeMeal(id) {
   const { error } = await sb.from('meals').delete().eq('id', id);
   if (error) return setProblem(error);
   await loadTab({ quiet: true });
+}
+
+// ---------------------------------------------------------------
+// The card: expanding over the calendar, and the edit panel for a meal
+// ---------------------------------------------------------------
+function calSetExpanded(on) {
+  calExpanded = on;
+  const drawer = document.getElementById('calDrawer');
+  if (drawer) drawer.classList.toggle('expanded', on);
+  const b = document.getElementById('calExpandBtn');
+  if (b) { b.innerHTML = on ? CAL_SHRINK : CAL_EXPAND; b.setAttribute('aria-label', t(on ? 'calShrink' : 'calExpand')); }
+}
+function calToggleExpand() { calSetExpanded(!calExpanded); }
+
+// The recipe's own ingredients, in the shape the edit panel uses.
+function recipeIngsFor(meal) {
+  const inStock = cache.inStockKeys || new Set();
+  return (cache.ingsByRecipe || {})[meal.recipe_id] ? cache.ingsByRecipe[meal.recipe_id].map((i) => ({
+    name: nameOf(i.name_en, i.name_ar), qty: i.quantity || '', have: inStock.has(i.ingredient_key),
+  })) : [];
+}
+
+// The edit panel for a meal: its ingredients (each can be changed, or added to), the servings, and Save / Cancel.
+function calEditPanelHtml(meal, shut) {
+  const d = calDraft;
+  const row = (i) => d.row === i
+    ? `<div class="cal-ing cal-ing-edit"><input data-f="name" value="${esc(d.ings[i].name)}" aria-label="${esc(t('calIngredient'))}"><input data-f="qty" value="${esc(d.ings[i].qty)}" aria-label="${esc(t('calAmount'))}"><button class="cal-mini solid" onclick="calIngDone(${i})">${esc(t('calDone'))}</button></div>`
+    : `<div class="cal-ing"><span>${esc(d.ings[i].name)} <small>${esc(d.ings[i].qty)}</small></span><span class="${d.ings[i].have ? 'have' : 'miss'}">${esc(t(d.ings[i].have ? 'calInKitchen' : 'missing'))}</span><button class="cal-mini" onclick="calIngChange(${i})">${esc(t('calChange'))}</button></div>`;
+  const adder = d.row === 'new'
+    ? `<div class="cal-ing cal-ing-edit"><input data-f="name" placeholder="${esc(t('calIngredient'))}" aria-label="${esc(t('calIngredient'))}"><input data-f="qty" placeholder="${esc(t('calAmount'))}" aria-label="${esc(t('calAmount'))}"><button class="cal-mini solid" onclick="calIngDone('new')">${esc(t('calDone'))}</button></div>`
+    : `<button class="cal-mini cal-add-ing" onclick="calIngAdd()">${esc(t('calAddIngredient'))}</button>`;
+  return `<div class="cal-exp-wrap${shut ? ' shut' : ''}"><div class="cal-exp"><div class="cal-exp-in">
+    ${d.ings.map((g, i) => row(i)).join('')}${adder}
+    <div class="cal-exp-foot">
+      <div class="cal-stepper"><span>${esc(t('calServings'))}</span><button onclick="calServ(-1)" aria-label="−">&minus;</button><output id="calServOut">${d.servings}</output><button onclick="calServ(1)" aria-label="+">+</button></div>
+      <div class="cal-exp-btns"><button class="cal-mini" onclick="calChangeMeal('${meal.id}')">${esc(t('calChangeMeal'))}</button>
+        <button class="cal-mini" onclick="calEditCancel()">${esc(t('cancel'))}</button>
+        <button class="cal-mini solid" onclick="calEditSave('${meal.id}')">${esc(t('save'))}</button></div>
+    </div>
+  </div></div></div>`;
+}
+
+// Redraws the open panel from the working copy, without replaying its entrance.
+function redrawEditPanel() {
+  const wrap = document.querySelector(`li[data-meal="${calDraft.id}"] .cal-exp-wrap`);
+  const meal = (cache.meals || []).find((m) => m.id === calDraft.id);
+  if (wrap && meal) wrap.outerHTML = calEditPanelHtml(meal, false);
+  syncScreenHtml();
+}
+// Reads the row being changed, into the working copy.
+function commitIngRow() {
+  const i = calDraft.row;
+  const row = document.querySelector('.cal-ing-edit');
+  if (i === null || !row) return;
+  const name = row.querySelector('[data-f=name]').value.trim();
+  const qty = row.querySelector('[data-f=qty]').value.trim();
+  if (i === 'new') { if (name) calDraft.ings.push({ name, qty, have: false }); }
+  else { const old = calDraft.ings[i]; calDraft.ings[i] = { name: name || old.name, qty, have: old.have }; }
+  calDraft.row = null;
+}
+function calIngChange(i) { commitIngRow(); calDraft.row = i; redrawEditPanel(); }
+function calIngAdd() { commitIngRow(); calDraft.row = 'new'; redrawEditPanel(); }
+function calIngDone(i) { calDraft.row = i; commitIngRow(); redrawEditPanel(); }
+function calServ(d) {
+  calDraft.servings = Math.min(12, Math.max(1, calDraft.servings + d));
+  const out = document.getElementById('calServOut');
+  if (out) out.textContent = calDraft.servings;
+}
+
+// Folds the open panel away (after the shrink) and puts the meal's row back as it was.
+function closeEditNow() {
+  if (!calDraft) { mealEditId = null; return; }
+  const li = document.querySelector(`li[data-meal="${calDraft.id}"]`);
+  calDraft = null; mealEditId = null;
+  if (li) {
+    const panel = li.querySelector('.cal-exp-wrap');
+    if (panel) panel.remove();
+    const acts = li.querySelector('.cal-acts');
+    if (acts) { acts.classList.remove('quiet'); acts.classList.add('fade-in'); }
+  }
+  syncScreenHtml();
+}
+function calEditCancel() {
+  if (!calDraft) return;
+  const wrap = document.querySelector(`li[data-meal="${calDraft.id}"] .cal-exp-wrap`);
+  if (!wrap || wrap.classList.contains('shut')) return;
+  wrap.classList.add('shut');
+  setTimeout(closeEditNow, motion('--pick-close', 400));
+}
+// Save: the servings and the ingredient changes go to the meal, then the tab reloads quietly.
+async function calEditSave(id) {
+  if (!calDraft || calDraft.id !== id) return;
+  commitIngRow();
+  const wrap = document.querySelector(`li[data-meal="${id}"] .cal-exp-wrap`);
+  if (wrap) wrap.classList.add('shut');
+  const { data, error } = await sb.from('meals')
+    .update({ servings: calDraft.servings, ingredient_changes: calDraft.ings })
+    .eq('id', id).select(MEAL_SELECT).single();
+  if (error) {
+    if (wrap) wrap.classList.remove('shut');
+    return setProblem(error);
+  }
+  cache.meals = (cache.meals || []).map((m) => (m.id === id ? data : m));
+  setTimeout(() => { closeEditNow(); loadTab({ quiet: true }); }, motion('--pick-close', 400));
+}
+// "Change meal" opens the existing picker, to choose a different recipe for this meal.
+function calChangeMeal(id) {
+  const meal = (cache.meals || []).find((m) => m.id === id);
+  if (!meal) return;
+  closeEditNow();
+  startPicker(meal);
+  mealEditId = id; mealForm = false;
+  const opened = openFormNow('meal-edit-' + id, () => {
+    const li = document.querySelector(`li[data-meal="${id}"]`);
+    return li ? { els: [li] } : null;
+  }, `<li data-meal="${id}">${mealFormHtml(meal)}</li>`);
+  if (!opened) loadTab({ quiet: true });
 }
