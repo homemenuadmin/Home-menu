@@ -692,7 +692,7 @@ button, .btn, .tile, .chip, .icon-btn, .drawer-item, .daychip, .pick-row, .dk-no
 /* The card: it can grow over the calendar, and each meal row can open its edit panel. */
 .cal-stage { position:relative; --cal-h:300px; }
 .cal-drawer { transition: margin-top var(--pick-close) var(--pick-io), min-height var(--pick-close) var(--pick-io), z-index 0s linear .5s; }
-.cal-drawer.expanded { margin-top: calc(12px - var(--cal-h)); min-height: calc(var(--cal-h) + 330px); z-index:4;
+.cal-drawer.expanded { z-index:4;
   transition: margin-top var(--pick-open) var(--pick-out), min-height var(--pick-open) var(--pick-out), z-index 0s; }
 .cal-drawer.form-open .cal-close { visibility:hidden; }
 .cal-drawer.expanded .cal-sheet { box-shadow: 0 10px 28px rgba(31,41,55,.14); }

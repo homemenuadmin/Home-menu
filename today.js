@@ -43,6 +43,7 @@ const CAL_EXPAND = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 const CAL_SHRINK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>';
 // The card's state: expanded over the calendar, and the meal whose edit panel is open with its working copy.
 let calExpanded = false;
+let calH = 300;       // the calendar's height, measured, so the expanded card can cover it exactly
 let calDraft = null;   // { id, servings, ings: [{ name, qty, have }] }
 // One meal's row in its slot's list.
 function mealRowHtml(m) {
@@ -154,7 +155,7 @@ function calCountText() {
 // The card under the calendar: the day, its count, the slot switch, and the chosen slot's meals.
 function calDrawerHtml(withEnter) {
   const cls = `${withEnter ? foldEnter('cal-sheet') : ''}${calExpanded ? ' expanded' : ''}${mealForm ? ' form-open' : ''}`;
-  return `<div class="fold cal-drawer${cls}" data-fold="cal-sheet" id="calDrawer"><div class="cal-sheet">
+  return `<div class="fold cal-drawer${cls}" data-fold="cal-sheet" id="calDrawer"${calExpanded ? ` style="${calSizeCss()}"` : ''}><div class="cal-sheet">
     <div class="cal-head"><div><h2 id="calTitle">${esc(calTitleText())}</h2><small id="calCount">${esc(calCountText())}</small></div>
       <button class="icon-btn cal-close" id="calExpandBtn" onclick="calToggleExpand()" aria-label="${esc(t(calExpanded ? 'calShrink' : 'calExpand'))}">${calExpanded ? CAL_SHRINK : CAL_EXPAND}</button></div>
     <div class="seg cal-seg"><span class="seg-ind" aria-hidden="true"></span>${SLOTS.map((s) =>
@@ -179,7 +180,7 @@ function calBodyHtml() {
 // Moves the highlight to the chosen day. With animate, it fades out first and then moves and fades in.
 function calPlaceSel(animate) {
   const cal = document.getElementById('calCal');
-  if (cal) cal.parentElement.style.setProperty('--cal-h', cal.offsetHeight + 'px');
+  if (cal) { calH = cal.offsetHeight; cal.parentElement.style.setProperty('--cal-h', calH + 'px'); }
   const ring = document.getElementById('calSel');
   const grid = document.getElementById('calGrid');
   if (!ring || !grid) return;
@@ -517,10 +518,12 @@ async function removeMeal(id) {
 // ---------------------------------------------------------------
 // The card: expanding over the calendar, and the edit panel for a meal
 // ---------------------------------------------------------------
+// The expanded card's size and place, in plain pixels, so the card animates back smoothly when it shrinks.
+function calSizeCss() { return `margin-top:${12 - calH}px;min-height:${calH + 330}px`; }
 function calSetExpanded(on) {
   calExpanded = on;
   const drawer = document.getElementById('calDrawer');
-  if (drawer) drawer.classList.toggle('expanded', on);
+  if (drawer) { drawer.classList.toggle('expanded', on); drawer.style.cssText = on ? calSizeCss() : ''; }
   const b = document.getElementById('calExpandBtn');
   if (b) { b.innerHTML = on ? CAL_SHRINK : CAL_EXPAND; b.setAttribute('aria-label', t(on ? 'calShrink' : 'calExpand')); }
 }
