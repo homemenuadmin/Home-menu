@@ -181,6 +181,11 @@ async function saveSetup() {
   // The name they type is their nickname, shown in Settings and to the household.
   const { error: nameError } = await sb.from('profiles').update({ nickname: d.name.trim() }).eq('id', session.user.id);
   if (nameError) return setProblem(nameError);
+  // Check the household against the database first: the id loaded when the app opened can be stale.
+  const { data: mem, error: memError } = await sb.from('household_members').select('household_id, role').eq('user_id', session.user.id).maybeSingle();
+  if (memError) return setProblem(memError);
+  if (!mem) { problem = t('householdMissing'); notice = ''; return render(); }
+  hh.id = mem.household_id;
   const { error } = await sb.from('member_settings').upsert({
     user_id: session.user.id,
     household_id: hh.id,
